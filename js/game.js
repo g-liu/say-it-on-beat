@@ -34,6 +34,7 @@
     instrument: 'violin',        // 'violin' | 'viola' | 'both' (see Content.INSTRUMENTS)
     clefMode: Content.CLEF_MODES[0],   // for 'both': 'alternate' | 'treble' | 'alto'
     clap: false,                 // clap the rhythm cards during "Say it!"
+    clapVolume: 1,               // 0.1 to 1; 1 peaks at 0.99 (see js/audio.js)
     bpm: 90,
     rounds: 5,
     speedUp: true,
@@ -149,6 +150,7 @@
       out.scaleKey = DEFAULTS.scaleKey;
       out.scaleType = DEFAULTS.scaleType;
     }
+    out.clapVolume = clamp(out.clapVolume, 0.1, 1, DEFAULTS.clapVolume);
     out.bpm = clamp(out.bpm, MIN_START_BPM, MAX_START_BPM, DEFAULTS.bpm);
     out.speedUpPct = Math.round(clamp(out.speedUpPct, MIN_SPEED_PCT, MAX_SPEED_PCT, DEFAULTS.speedUpPct));
     // The 1 / 2 octave buttons and the From / To menus became range presets and a custom range.
@@ -557,6 +559,17 @@
       saveSettings();
     });
 
+    const clapVol = $('clapVolume');
+    const showClap = () => { $('clapVolumeOut').textContent = Math.round(settings.clapVolume * 100) + '%'; };
+    clapVol.value = settings.clapVolume;
+    showClap();
+    clapVol.addEventListener('input', () => {
+      settings.clapVolume = Number(clapVol.value);
+      if (engine.ctx) engine.setClapVolume(settings.clapVolume);
+      showClap();
+      saveSettings();
+    });
+
     $('startBtn').addEventListener('click', startGame);
     $('previewBtn').addEventListener('click', openPreview);
     $('previewClose').addEventListener('click', closePreview);
@@ -903,6 +916,7 @@
     closePreview();
     engine.init();
     engine.setVolume(settings.volume);
+    engine.setClapVolume(settings.clapVolume);
     engine.newBus();
     game.groups = buildGroups();
     game.started = true;

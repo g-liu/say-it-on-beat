@@ -56,7 +56,7 @@ Only the open tab is played. Each tab has categories split into subcategories. N
 - **Rhythms** (its own tab): one measure per card.
   - **Time signatures**: Simple (2/4, 3/4, 4/4, common time C, cut time ¢, 3/8, 6/8) and Complex (2/2, 3/2, 5/4, 7/8, 9/8, 12/8). C and ¢ work exactly like 4/4 and 2/2. 2/4, 3/4 and 4/4 are picked when you turn it on. With several, each round uses the next one.
   - **Note values**: buttons with the note symbols: sixteenths, eighths, quarters, halves, whole notes, dotted eighth + sixteenth, dotted quarters, dotted halves, triplets (in simple meters), duplets (in 6/8, 9/8, 12/8) and rests. Values that don't fit the picked time signatures are greyed out. Defaults: eighths, quarters, halves, wholes, dotted halves (for 3/4) and rests.
-  - Compound meters beat in dotted quarters, and 7/8 is grouped 2+2+3, with the music following the meter. Simple meters are counted "1 e & a" (and "1 trip let"); x/8 meters are counted by eighths. Turn on **Clap the rhythm** to have the computer clap each card during "Say it!".
+  - Compound meters beat in dotted quarters, and 7/8 is grouped 2+2+3, with the music following the meter. Simple meters are counted "1 e & a" (and "1 trip let"); x/8 meters are counted by eighths. Turn on **Clap the rhythm** to have the computer clap each card during "Say it!", with its own **Clap volume** (10%–100%; 100% peaks at 0.99).
 
 ## Running a round
 
@@ -101,7 +101,8 @@ The on-screen controls hide while the game is running. Move the mouse to bring t
 - `vendor/leland`: the [Leland](https://github.com/MuseScoreFonts/Leland) font, as a git submodule
 - `js/theory.js`: spelling notes, keys, intervals, chords and cadences (no drawing). `node tools/check_theory.js` prints every chord, cadence and interval answer for checking.
 - `js/content.js`: the categories, subcategories and cards, and the rhythm generator
-- `js/audio.js`: drum machine, bass, chords and clap, following the time signature
+- `js/audio.js`: drum machine, bass, chords and clap, following the time signature. Everything passes a compressor and a hard ceiling at 0.99, so the output never reaches full scale.
+- `tools/measure_audio.html`: open it in a browser to measure the clap and music peaks (used to set the clap's 100% level)
 - `js/game.js`: setup screen, round planning, beat scheduling, controls
 
 ## Hosting

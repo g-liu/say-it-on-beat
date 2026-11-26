@@ -14,6 +14,16 @@
     { bass: 61.74, chord: [293.66, 369.99, 493.88] },   // Bm
     { bass: 49.0, chord: [293.66, 392.0, 493.88] }      // G
   ];
+  /*
+   * Output levels. Everything goes through a compressor and then a hard ceiling at 0.99, so the
+   * output never reaches full scale (1.0). The clap has its own volume, separate from the music:
+   * CLAP_GAIN_FULL is the clap's gain at 100%, measured with tools/measure_audio.html so a clap
+   * on its own peaks at about 0.99.
+   */
+  const PEAK_CEILING = 0.99;
+  const CLAP_GAIN_FULL = 0.565;
+  const MIN_CLAP_VOLUME = 0.1;
+
   // Pentatonic bells for each card as it appears.
   const BELLS = [587.33, 659.25, 739.99, 880.0, 987.77, 1174.66, 1318.51, 1479.98];
 
@@ -24,18 +34,41 @@
     this.noise = null;
     this.volume = 0.8;
     this.level = 1;          // scales the groove; lowered while the computer claps
+    this.clapVolume = 1;     // 0.1 to 1 (10% to 100%)
   }
 
-  Engine.prototype.init = function () {
+  // A hard limit: the waveshaper passes everything below the ceiling unchanged and flattens anything above it.
+  function ceiling(ctx) {
+    const shaper = ctx.createWaveShaper();
+    const n = 4097;
+    const curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * 2 - 1;
+      curve[i] = Math.max(-PEAK_CEILING, Math.min(PEAK_CEILING, x));
+    }
+    shaper.curve = curve;
+    shaper.oversample = 'none';
+    return shaper;
+  }
+
+  // ctxOverride: an OfflineAudioContext, for measuring levels (tools/measure_audio.html).
+  Engine.prototype.init = function (ctxOverride) {
     if (this.ctx) return this.ctx;
-    const ctx = new Ctx();
+    const ctx = ctxOverride || new Ctx();
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -14;
     comp.ratio.value = 4;
-    comp.connect(ctx.destination);
+    const limit = ceiling(ctx);
+    comp.connect(limit);
+    limit.connect(ctx.destination);
+    this.comp = comp;
     this.master = ctx.createGain();
     this.master.gain.value = this.volume;
     this.master.connect(comp);
+    // The clap skips the music volume and has its own.
+    this.clapMaster = ctx.createGain();
+    this.clapMaster.gain.value = CLAP_GAIN_FULL * this.clapVolume;
+    this.clapMaster.connect(comp);
     const len = ctx.sampleRate;
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
     const data = buf.getChannelData(0);
@@ -48,14 +81,22 @@
 
   // A fresh output bus. Dropping the old one silences anything already scheduled on it.
   Engine.prototype.newBus = function () {
-    if (this.bus) {
-      const old = this.bus;
+    [this.bus, this.clapBus].forEach((old) => {
+      if (!old) return;
       old.gain.setValueAtTime(old.gain.value, this.ctx.currentTime);
       old.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.03);
       setTimeout(() => { try { old.disconnect(); } catch (e) { /* already gone */ } }, 120);
-    }
+    });
     this.bus = this.ctx.createGain();
     this.bus.connect(this.master);
+    this.clapBus = this.ctx.createGain();
+    this.clapBus.connect(this.clapMaster);
+  };
+
+  // Clap volume, 0.1 (10%) to 1 (100%).
+  Engine.prototype.setClapVolume = function (v) {
+    this.clapVolume = Math.min(1, Math.max(MIN_CLAP_VOLUME, v));
+    if (this.clapMaster) this.clapMaster.gain.setTargetAtTime(CLAP_GAIN_FULL * this.clapVolume, this.ctx.currentTime, 0.02);
   };
 
   Engine.prototype.setVolume = function (v) {
@@ -196,14 +237,14 @@
     body.type = 'bandpass';
     body.frequency.value = 1400;
     body.Q.value = 0.7;
-    body.connect(this.bus);
+    body.connect(this.clapBus);
     const snap = ctx.createBiquadFilter();
     snap.type = 'highpass';
     snap.frequency.value = 2800;
     const snapGain = ctx.createGain();
     snapGain.gain.value = 0.55;
     snap.connect(snapGain);
-    snapGain.connect(this.bus);
+    snapGain.connect(this.clapBus);
     [0, 0.008, 0.017, 0.027].forEach((dt, i) => {
       const last = i === 3;
       const n = this.noiseSrc(t + dt, last ? 0.25 : 0.03);
@@ -291,5 +332,7 @@
     }
   };
 
+  Engine.CLAP_GAIN_FULL = CLAP_GAIN_FULL;
+  Engine.PEAK_CEILING = PEAK_CEILING;
   global.BeatEngine = Engine;
 })(window);

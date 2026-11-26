@@ -1,0 +1,53 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Say It on Beat: measure audio levels</title>
+<!--
+  Renders the app's sounds offline through the same compressor and 0.99 ceiling as the game
+  (BeatEngine.init) and prints their peaks. Open this file in a browser.
+  Used to set CLAP_GAIN_FULL in js/audio.js so a clap at 100% peaks at 0.99.
+-->
+<pre id="out">Measuring…</pre>
+<script src="../js/audio.js"></script>
+<script>
+  'use strict';
+  const RATE = 44100;
+  // Peak of `n` claps (each with its own random noise) at a clap gain, with the music silent or playing.
+  async function measure(opts) {
+    const dur = 0.6 * opts.n + 1;
+    const ctx = new OfflineAudioContext(1, Math.ceil(RATE * dur), RATE);
+    const e = new BeatEngine();
+    e.volume = opts.music == null ? 0.8 : opts.music;
+    e.init(ctx);
+    e.clapMaster.gain.value = opts.gain;
+    for (let i = 0; i < opts.n; i++) {
+      const t = 0.2 + i * 0.6;
+      if (opts.claps !== false) e.clap(t);
+      if (opts.groove) e.playBeat({ t: t, spb: 0.6, sub: 2, barPos: i % 4, meter: 4, bar: Math.floor(i / 4), phase: 'say', duck: opts.claps !== false });
+    }
+    const buf = await ctx.startRendering();
+    const d = buf.getChannelData(0);
+    let peak = 0;
+    for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
+    return peak;
+  }
+  (async () => {
+    const lines = [];
+    const full = BeatEngine.CLAP_GAIN_FULL;
+    // Find the clap gain where 40 claps on their own peak at 0.99 (before the ceiling).
+    let lo = 0.05, hi = 20;
+    for (let k = 0; k < 24; k++) {
+      const mid = Math.sqrt(lo * hi);
+      const p = await measure({ gain: mid, n: 40 });
+      if (p < 0.989) lo = mid; else hi = mid;
+    }
+    lines.push('Clap gain for a 0.99 peak: ' + lo.toFixed(3) + ' (CLAP_GAIN_FULL in js/audio.js is ' + full + ')');
+    for (const v of [0.1, 0.25, 0.5, 0.8, 1]) {
+      const p = await measure({ gain: full * v, n: 40 });
+      lines.push('Clap at ' + Math.round(v * 100) + '%: peak ' + p.toFixed(4));
+    }
+    lines.push('Groove alone (music volume 0.8): peak ' + (await measure({ gain: full, n: 16, groove: true, claps: false })).toFixed(4));
+    lines.push('Groove (music 1.0) + claps at 100%: peak ' + (await measure({ gain: full, n: 16, groove: true, music: 1 })).toFixed(4));
+    document.getElementById('out').textContent = lines.join('\n');
+    window.RESULT = lines;
+  })();
+</script>

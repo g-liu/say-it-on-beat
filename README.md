@@ -2,7 +2,7 @@
 
 A classroom version of the "Say the Word on Beat" game for violin class. Eight cards appear one at a time over a drum beat. Then each card lights up on the beat, and the class says it out loud.
 
-Open `index.html` in a browser. There's no install, build step or internet connection needed. All the notation is drawn in SVG and the music is made with Web Audio.
+Play it at **https://g-liu.github.io/say-it-on-beat/**, or open `index.html` in a browser. There's no install, build step or internet connection needed. All the notation is drawn in SVG and the music is made with Web Audio.
 
 ## Categories
 
@@ -62,3 +62,7 @@ The on-screen controls hide while the game is running. Move the mouse to bring t
 - `js/content.js`: the categories and their cards
 - `js/audio.js`: drum machine, bass and chords
 - `js/game.js`: setup screen, round planning, beat scheduling, controls
+
+## Hosting
+
+GitHub Pages serves the site from the root of `main` (Settings → Pages → Deploy from a branch → `main` / root), so every push updates it. `.nojekyll` tells Pages to serve the files as they are.

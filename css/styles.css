@@ -140,6 +140,8 @@ kbd {
 .ichip .chip-art path, .ichip .chip-art line { stroke: currentColor; }
 .ichip.ts-chip { border-radius: 12px; padding: 4px 8px; min-width: 52px; justify-content: center; }
 .ichip.ts-chip .chip-art { height: 46px; }
+.ichip.deg-chip { min-width: 40px; font-size: 1.05rem; padding: 2px 10px 4px; }
+.ichip.iv-chip { min-width: 46px; }
 .ichip.value-chip { border-radius: 12px; padding: 4px 10px; min-width: 44px; justify-content: center; }
 .ichip.value-chip .chip-art { height: 40px; }
 .subcat[data-sub="rhythmvalues"] .ichips { margin-left: 0; }

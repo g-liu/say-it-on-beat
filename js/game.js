@@ -26,6 +26,9 @@
     tab: 'cards',                // 'cards' | 'rhythms' (see Content.TABS); only the open tab is played
     // Keys for the subcategories that have a key picker (ids like 'C:major', 'A:minor')
     spellKeys: ['C:major'],
+    degreeKeys: ['C:major'],
+    intervalKeys: ['C:major'],
+    intervalStyle: 'melodic',    // 'melodic' | 'harmonic'
     cadenceKeys: ['C:major'],
     chordLabels: 'roman',        // spelling cards and cadence answers: 'roman' | 'function'
     instrument: 'violin',        // 'violin' | 'viola' | 'both' (see Content.INSTRUMENTS)
@@ -88,6 +91,12 @@
     try { s = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { s = {}; }
     const out = Object.assign({}, DEFAULTS, s);
     const sel = s.sel && typeof s.sel === 'object' ? Object.assign({}, s.sel) : migrateSelection(s);
+    // Scale degrees used to pick major keys with its chips; now the chips are degrees 1-7 and keys have a picker.
+    if (Array.isArray(sel.degrees) && sel.degrees.some((d) => !/^[1-7]$/.test(d))) {
+      if (!Array.isArray(s.degreeKeys)) s.degreeKeys = sel.degrees.map((k) => k + ':major');
+      out.degreeKeys = s.degreeKeys;
+      sel.degrees = sel.degrees.length ? Content.DEGREE_IDS.slice() : [];
+    }
     // Chips that moved to another subcategory take their saved picks with them.
     Object.keys(Content.RELOCATED_CHIPS).forEach((id) => {
       const [from, to] = Content.RELOCATED_CHIPS[id];

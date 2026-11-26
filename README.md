@@ -34,7 +34,8 @@ Only the open tab is played. Each tab has categories split into subcategories. T
   - **Advanced**: dotted notes, sixteenths, triplets
 - **Note reading**
   - **Key signatures**: name the major key, from C through 6 sharps and 6 flats
-  - **Scale degrees**: a note in a key (with its key signature); the class names its scale degree, shown as a number with a circumflex, like 3̂. One key is recommended; several keys is difficult.
+  - **Scale degrees**: a note in a key (with its key signature); the class names its scale degree, shown as a number with a circumflex, like 3̂. Pick the degrees (1–7) and the keys (any major or minor key, default C major; minor keys use natural minor). One key is recommended; several keys is difficult.
+  - **Intervals**: two notes from a key's scale, with its key signature, one after the other or together; the class names the interval ("Major 3rd"). Pick the intervals (unison to major 10th) and the keys.
 - **Chords**: each subcategory has chips in four tiers (Simple, Medium, Advanced, Uncommon); Simple is picked when you turn it on.
   - **Naming chords**: a chord in notation with no key signature; the class names it ("D minor", "G7"). Simple: major, minor, dominant 7th. Medium: diminished, 1st and 2nd inversions. Advanced: augmented, major/minor/half-diminished/diminished 7ths, add 2, add 4, 9ths, 11ths, sus. Uncommon: 13ths, minor-major 7th, 6th chords, 7♭9.
   - **Spelling chords**: a Roman numeral in a key ("IV in C major"); the class spells it from the bass up ("F A C"). Simple: I, IV, V, V7 (i, iv, V, V7 in minor). Medium: ii, iii, vi, vii°, cadential 6/4. Advanced: 7th chords, augmented, Italian/French/German augmented sixths, add 2, add 4, V9, V11. Uncommon: Neapolitan, secondary dominants, borrowed chords, V13. Pick the keys (any major or minor key), and show Roman numerals or function names ("Subdominant").

@@ -33,6 +33,7 @@
    * Pitch helpers
    * ========================================================= */
 
+  const keyList = (ids) => (ids || []).map(T.keyById).filter(Boolean);
   const LETTERS = 'CDEFGAB';
   const LETTER_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
   const NATURAL_PC = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' };
@@ -412,20 +413,55 @@
   const degreeMark = (d) => '<span class="deg">' + d + '</span>';
   const DEGREE_NAMES = ['tonic', 'supertonic', 'mediant', 'subdominant', 'dominant', 'submediant', 'leading tone'];
 
-  // Each note of the major scale (one octave, tonic to tonic) with the key signature.
-  function degreePool(keys) {
+  const DEGREE_IDS = ['1', '2', '3', '4', '5', '6', '7'];
+
+  // The picked degrees of each picked key's scale (one octave, tonic to tonic), with the key signature.
+  // Minor keys use the natural minor scale, so their 7th degree is the subtonic.
+  function degreePool(degrees, s) {
     const out = [];
-    KEY_PAIRS.filter((k) => keys.indexOf(k.major) >= 0).forEach((k) => {
-      const start = lowestTonic(k.major, 55);
-      const degrees = spellScale(k.major, SCALE_TYPES.major.steps);
-      degrees.concat([{ name: k.major, semi: 12, degree: 1 }]).forEach((d) => {
+    keyList(s.degreeKeys).forEach((key) => {
+      const start = lowestTonic(key.tonic, 55);
+      const scale = T.scaleOf(key).map((n, i) => ({ name: n.name, semi: n.semi, degree: i + 1 }));
+      scale.concat([{ name: key.tonic, semi: 12, degree: 1 }]).forEach((d) => {
+        if (degrees.indexOf(String(d.degree)) < 0) return;
         const midi = start + d.semi;
         const octave = octaveFor(d.name, midi);
+        const role = key.mode === 'minor' && d.degree === 7 ? 'subtonic' : DEGREE_NAMES[d.degree - 1];
         out.push({
-          id: 'deg-' + k.major + '-' + d.name + octave,
-          draw: (clef) => noteSvg(d.name, octave, { key: k, clef: clef }),
+          id: 'deg-' + key.id + '-' + d.name + octave,
+          draw: (clef) => noteSvg(d.name, octave, { key: key.sig, clef: clef }),
           say: degreeMark(d.degree),
-          detail: label(d.name, octave) + ' in ' + pretty(k.major) + ' major · ' + DEGREE_NAMES[d.degree - 1]
+          detail: label(d.name, octave) + ' in ' + T.keyName(key) + ' · ' + role
+        });
+      });
+    });
+    return out;
+  }
+
+  /* =========================================================
+   * Intervals: two notes of a key, unison to a 10th
+   * ========================================================= */
+
+  const INTERVAL_STYLES = [['melodic', 'One after the other'], ['harmonic', 'Together']];
+
+  function intervalPool(ids, s) {
+    const out = [];
+    const together = s.intervalStyle === 'harmonic';
+    keyList(s.intervalKeys).forEach((key) => {
+      T.INTERVALS.filter((iv) => ids.indexOf(iv.id) >= 0).forEach((iv) => {
+        T.intervalsInKey(key, iv).forEach((p) => {
+          out.push({
+            id: 'interval-' + key.id + '-' + iv.id + '-' + p.low,
+            draw: (clef) => {
+              const lowOct = bassOctaveFor(p.low, clef, Math.round(4 - iv.steps / 2));
+              const lowMidi = T.toMidi(p.low, lowOct);
+              const low = { name: p.low, octave: lowOct };
+              const high = { name: p.high, octave: octaveFor(p.high, lowMidi + iv.semis) };
+              return chordsSvg(together ? [[low, high]] : [[low], [high]], { clef: clef, sig: key.sig });
+            },
+            say: iv.name,
+            detail: pretty(p.low) + (iv.steps ? ' up to ' : ' and ') + pretty(p.high) + ' in ' + T.keyName(key)
+          });
         });
       });
     });
@@ -1027,7 +1063,8 @@
       // Seconds: the upper note of a second goes to the right of the stem side.
       let prev = null;
       placed.forEach((p) => {
-        p.shift = !!(prev && p.pos - prev.pos === 1 && !prev.shift);
+        // (A unison also needs its second head beside the first.)
+        p.shift = !!(prev && p.pos - prev.pos <= 1 && !prev.shift);
         prev = p;
       });
       // Accidentals in columns, top down, so ones within a 6th don't collide.
@@ -1103,7 +1140,6 @@
     return out;
   }
 
-  const keyList = (ids) => (ids || []).map(T.keyById).filter(Boolean);
   const keyText = (key) => T.keyName(key);
 
   // A Roman numeral (or function name) and "in C major", as big text.
@@ -1256,7 +1292,12 @@
     { id: 'reading', tab: 'cards', name: 'Note reading', subcats: [
       itemSubcat({ id: 'keysigs', name: 'Key signatures', desc: 'Name the major key' }, KEY_ITEMS),
       { id: 'degrees', name: 'Scale degrees', desc: 'Name the scale degree of each note. One key is recommended; more than one is difficult!',
-        chips: KEY_PAIRS.map((k) => ({ id: k.major, label: keyChipLabel(k) })), pool: (sel) => degreePool(sel) }
+        chips: DEGREE_IDS.map((d) => ({ id: d, label: 'Scale degree ' + d, html: degreeMark(d), cls: 'deg-chip' })),
+        pool: (sel, s) => degreePool(sel, s), keyPicker: 'degreeKeys' },
+      { id: 'intervals', name: 'Intervals', desc: 'Two notes of a key, unison to a 10th: name the interval (“Major 3rd”)',
+        chips: T.INTERVALS.map((iv) => ({ id: iv.id, label: iv.name, html: iv.id, cls: 'iv-chip' })),
+        pool: (sel, s) => intervalPool(sel, s), keyPicker: 'intervalKeys',
+        options: [{ setting: 'intervalStyle', label: 'Notes', choices: INTERVAL_STYLES }] }
     ] },
     { id: 'chords', tab: 'cards', name: 'Chords', subcats: [
       { id: 'chordnames', name: 'Naming chords', desc: 'A chord in notation, no key signature: name it (“D minor”, “G7”)',
@@ -1299,7 +1340,7 @@
 
   global.Content = {
     INSTRUMENTS: INSTRUMENTS, INSTRUMENT_IDS: INSTRUMENT_IDS, CLEF_MODES: CLEF_MODES, clefFor: clefFor, resolve: resolve,
-    KEYS: T.KEYS, CHORD_LABELS: CHORD_LABELS,
+    KEYS: T.KEYS, DEGREE_IDS: DEGREE_IDS, CHORD_LABELS: CHORD_LABELS,
     TABS: TABS, CATEGORIES: CATEGORIES, SUBCATS: SUBCATS, subById: subById, STRINGS: STRINGS, RELOCATED_CHIPS: RELOCATED_CHIPS,
     METERS: METERS, METER_IDS: METER_IDS, meterName: meterName, rhythmItem: rhythmItem, DEFAULT_RHYTHM_VALUES: DEFAULT_RHYTHM_VALUES,
     SCALE_CHOICES: SCALE_CHOICES, RANGE_NOTES: RANGE_NOTES, PICK_ROWS: PICK_ROWS,

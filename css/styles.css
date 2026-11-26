@@ -260,8 +260,46 @@ select option { font-weight: 500; }
 .secondary:hover { border-color: var(--ink); }
 
 @media (max-width: 860px) {
-  .setup-inner { grid-template-columns: 1fr; }
+  .setup-inner { grid-template-columns: minmax(0, 1fr); }
   .options { position: static; }
+}
+
+/* Keyboard shortcuts show only when a keyboard is likely connected (a mouse or trackpad, or a key
+   has been pressed); game.js sets body.has-keyboard. */
+body:not(.has-keyboard) kbd, body:not(.has-keyboard) .kbd-only { display: none; }
+body.has-keyboard .touch-only { display: none; }
+
+/* ---------------- Phones and small tablets ---------------- */
+
+/* Keep clear of the iPhone notch and home bar. */
+.setup-inner { padding-left: max(clamp(16px, 3vw, 40px), env(safe-area-inset-left)); padding-right: max(clamp(16px, 3vw, 40px), env(safe-area-inset-right)); }
+.setup-foot { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+
+@media (max-width: 600px) {
+  .setup-inner { padding-top: max(12px, env(safe-area-inset-top)); gap: 14px; }
+  .setup-head { align-items: stretch; }
+  .setup-head h1 { font-size: 2rem; }
+  .setup-head p { font-size: 0.95rem; }
+  .instrument { align-items: stretch; width: 100%; }
+  .instrument .seg { min-width: 0; }
+  .instrument .seg button { padding: 8px 6px; }
+  .clef-mode { justify-content: space-between; }
+  .panel { padding: 14px 12px; }
+  .tab-bar { margin: -4px -4px 12px; gap: 2px; }
+  .tab { flex: 1 1 0; min-width: 0; padding: 8px 8px 6px; font-size: 0.95rem; line-height: 1.2; text-align: left; justify-content: space-between; }
+  .panel-head { flex-wrap: wrap; }
+  .tab-desc { margin-bottom: 8px; font-size: 0.92rem; }
+  .mini-buttons { margin-bottom: 8px; }
+  .catgroup { padding: 0 10px; }
+  .catgroup > summary { font-size: 1.1rem; }
+  /* Use the full width instead of indenting under the checkbox. */
+  .ichips, .sub-extra { margin-left: 0; }
+  .sub-desc { margin-left: 0; }
+  .optrow { flex-wrap: wrap; row-gap: 6px; }
+  .seg.small button { padding: 5px 8px !important; }
+  .pc-grid .chip { font-size: 0.9rem; }
+  .setup-foot { gap: 10px; }
+  .setup-foot button { flex: 1; padding: 12px 10px; font-size: 1.05rem; }
 }
 
 /* ---------------- Game ---------------- */
@@ -294,7 +332,7 @@ select option { font-weight: 500; }
 .beat-dots i.on { background: var(--accent); transform: scale(1.35); }
 .beat-dots i.down.on { background: #fff; }
 .beat-dots i.long { width: 1.05em; border-radius: 0.35em; }
-.bpm { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 4.5em; text-align: right; }
+.bpm { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 4.5em; text-align: right; white-space: nowrap; }
 
 .grid {
   flex: 1; min-height: 0;
@@ -422,3 +460,38 @@ body.paused .card, body.paused .card * { animation-play-state: paused !important
 .pcard svg { width: 100%; height: 120px; display: block; }
 .pcard b { display: block; color: #b0123f; }
 .pcard > span { display: block; font-size: 0.8rem; color: #555; }
+
+/* ---------------- Game on phones and small tablets ---------------- */
+
+/* The game in portrait: two columns of four cards; rhythm cards one per row on phones. */
+@media (orientation: portrait) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); }
+}
+@media (orientation: portrait) and (max-width: 600px) {
+  .grid.wide { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(8, minmax(0, 1fr)); gap: 1vmin; }
+  .grid.wide .card .answer b { font-size: 0.85rem; }
+}
+#game {
+  padding-top: max(1.6vmin, env(safe-area-inset-top));
+  padding-left: max(2.4vmin, env(safe-area-inset-left));
+  padding-right: max(2.4vmin, env(safe-area-inset-right));
+  padding-bottom: max(2vmin, env(safe-area-inset-bottom));
+}
+@media (max-width: 600px), (max-height: 500px) {
+  .topbar { font-size: 1rem; gap: 6px; }
+  .phase { min-width: 0; padding: 0.25em 0.8em; }
+  .beat-info { gap: 0.5em; }
+  .bpm { min-width: 0; }
+  .controls { gap: 2px; padding: 4px; bottom: max(1.4vmin, env(safe-area-inset-bottom)); max-width: calc(100vw - 16px); }
+  .controls button { min-width: 0; padding: 6px 9px; }
+  .controls .icon { font-size: 1.25rem; }
+  .card .num { font-size: 0.75rem; }
+}
+@media (max-width: 420px) {
+  .controls .lbl { display: none; }
+  .controls button { padding: 10px 12px; }
+}
+@media (max-width: 360px) {
+  .topbar { font-size: 0.85rem; }
+  .beat-dots i { width: 0.55em; height: 0.55em; }
+}

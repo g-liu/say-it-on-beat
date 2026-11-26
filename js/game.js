@@ -1100,6 +1100,27 @@
     });
   }
 
+  /*
+   * Keyboard shortcut hints only make sense with a hardware keyboard. Browsers can't tell us one is
+   * connected, so show them with a mouse or trackpad (desktops, iPad with a Magic Keyboard), and
+   * from the first key press (phones and tablets with a Bluetooth or wired keyboard). The app has
+   * no text fields, so key presses don't come from the on-screen keyboard.
+   */
+  function watchKeyboard() {
+    const fine = window.matchMedia ? window.matchMedia('(hover: hover) and (pointer: fine)') : null;
+    let pressed = false;
+    const update = () => document.body.classList.toggle('has-keyboard', pressed || !!(fine && fine.matches));
+    document.addEventListener('keydown', () => { if (!pressed) { pressed = true; update(); } }, true);
+    if (fine && fine.addEventListener) fine.addEventListener('change', update);
+    update();
+  }
+  watchKeyboard();
+
+  // iPhone Safari can't put a page in full screen (only videos), so the button would do nothing there.
+  if (!document.documentElement.requestFullscreen && !document.documentElement.webkitRequestFullscreen) {
+    $('fullscreenBtn').classList.add('hidden');
+  }
+
   // Load the music font now so the first cards don't flash blank.
   if (document.fonts && document.fonts.load) document.fonts.load('40px "SayItOnBeat Music"', '').catch(() => {});
 

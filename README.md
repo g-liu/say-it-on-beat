@@ -80,6 +80,12 @@ Options: starting tempo (40–220 BPM), number of rounds, speed up each round by
 
 **Preview cards** shows every card in the selected categories with its answer.
 
+## Phones, tablets and keyboards
+
+The page fits phones and tablets (iPhone, iPad mini) in either orientation. In portrait the cards are in two columns of four (rhythm cards one per row on phones), and the setup screen is one column. The full-screen button is hidden where the browser can't do full screen (iPhone Safari); add the page to the home screen instead.
+
+Keyboard shortcut hints (like <kbd>Space</kbd> on the Start button) only show when a keyboard is likely connected: on computers with a mouse or trackpad, and on phones and tablets from the first key pressed on a Bluetooth or wired keyboard.
+
 ## Keyboard
 
 | Key | Action |

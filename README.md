@@ -1,8 +1,18 @@
-# Say It on Beat: violin class edition
+# Say It on Beat: violin and viola class edition
 
 A classroom version of the "Say the Word on Beat" game for violin class. Eight cards appear one at a time over a drum beat. Then each card lights up on the beat, and the class says it out loud.
 
 Play it at **https://g-liu.github.io/say-it-on-beat/**, or open `index.html` in a browser. There's no install, build step or internet connection needed. The notation uses the Leland music font (the one MuseScore uses), built into the stylesheet, and the music is made with Web Audio.
+
+## Violin, viola or both
+
+The switch at the top of the setup screen picks the instrument for the whole page:
+
+- **Violin**: notes in treble clef; home position on G D A E.
+- **Viola**: notes in alto clef; home position on C G D A (the C string is C D E F, the same high-2 pattern).
+- **Both**, for a mixed class: home position on all five strings, ranges go down to the viola's C, and cards that show notes (note names, key signatures, scale degrees) can be in treble or alto clef, or **alternate** between them on consecutive cards.
+
+Markings (dynamics, bowings, clefs and so on) are the same for every instrument.
 
 ## Categories
 

@@ -43,7 +43,14 @@ kbd {
   max-width: 1400px;
   margin: 0 auto;
 }
-.setup-head { grid-column: 1 / -1; }
+.setup-head { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px 28px; flex-wrap: wrap; }
+.instrument { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+.instrument .seg { min-width: 300px; }
+.instrument .seg button { padding: 10px 16px; font-size: 1.05rem; }
+.clef-mode { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 0.9rem; }
+.seg[aria-pressed], .seg button[aria-pressed="true"] { }
+.seg.small { min-width: 0 !important; }
+.seg.small button { padding: 5px 12px !important; font-size: 0.9rem !important; }
 .setup-head h1 { margin: 0; font-size: clamp(2rem, 4.5vw, 3.6rem); letter-spacing: -0.02em; }
 .setup-head h1 span { color: var(--accent); }
 .setup-head p { margin: 6px 0 0; color: var(--muted); font-size: 1.1rem; }

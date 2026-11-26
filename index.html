@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Say It on Beat — Violin</title>
+  <title>Say It on Beat — Violin &amp; Viola</title>
   <link rel="stylesheet" href="css/music-font.css">
   <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -13,8 +13,25 @@
   <main id="setup" class="screen">
    <div class="setup-inner">
     <header class="setup-head">
-      <h1>Say It <span>on Beat</span></h1>
-      <p>Violin class edition · watch the 8 cards, then say each one on the beat</p>
+      <div>
+        <h1>Say It <span>on Beat</span></h1>
+        <p><span id="editionLabel">Violin class edition</span> · watch the 8 cards, then say each one on the beat</p>
+      </div>
+      <div class="instrument">
+        <div class="seg" id="instrumentSwitch" role="group" aria-label="Instrument">
+          <button type="button" data-inst="violin">Violin</button>
+          <button type="button" data-inst="viola">Viola</button>
+          <button type="button" data-inst="both">Both</button>
+        </div>
+        <div class="clef-mode" id="clefModeWrap">
+          <span>Clef for notes</span>
+          <div class="seg small" id="clefMode" role="group" aria-label="Clef for cards with notes">
+            <button type="button" data-clef="alternate" title="Treble and alto clef on alternate cards">Alternate</button>
+            <button type="button" data-clef="treble">Treble</button>
+            <button type="button" data-clef="alto">Alto</button>
+          </div>
+        </div>
+      </div>
     </header>
 
     <section class="panel">

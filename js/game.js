@@ -24,6 +24,8 @@
     sel: null,
     lastSel: {},                 // picks remembered when a subcategory is switched off
     tab: 'cards',                // 'cards' | 'rhythms' (see Content.TABS); only the open tab is played
+    instrument: 'violin',        // 'violin' | 'viola' | 'both' (see Content.INSTRUMENTS)
+    clefMode: Content.CLEF_MODES[0],   // for 'both': 'alternate' | 'treble' | 'alto'
     rhythmLevel: 'basic',
     clap: false,                 // clap the rhythm cards during "Say it!"
     bpm: 90,
@@ -109,6 +111,8 @@
     }
     delete out.categories;
     delete out.strings;
+    if (Content.INSTRUMENT_IDS.indexOf(out.instrument) < 0) out.instrument = DEFAULTS.instrument;
+    if (Content.CLEF_MODES.indexOf(out.clefMode) < 0) out.clefMode = DEFAULTS.clefMode;
     if (['scale', 'chromatic', 'pick'].indexOf(out.pitchMode) < 0) out.pitchMode = DEFAULTS.pitchMode;
     if (SCALE_VALUES.indexOf(out.scaleKey + ':' + out.scaleType) < 0) {
       out.scaleKey = DEFAULTS.scaleKey;
@@ -264,7 +268,7 @@
       }
     });
     updatePitchOptions();
-    if (window.SetupExtras) window.SetupExtras.forEach((fn) => fn());
+    updateInstrument();
 
     const subs = activeSubs();
     $('startBtn').disabled = subs.length === 0;
@@ -279,8 +283,42 @@
     $('categoryHint').textContent = hint;
   }
 
+  // The page-wide instrument switch, and the clef choice for a mixed class.
+  function updateInstrument() {
+    document.querySelectorAll('#instrumentSwitch button').forEach((b) => {
+      b.setAttribute('aria-pressed', String(b.dataset.inst === settings.instrument));
+    });
+    document.querySelectorAll('#clefMode button').forEach((b) => {
+      b.setAttribute('aria-pressed', String(b.dataset.clef === settings.clefMode));
+    });
+    $('clefModeWrap').classList.toggle('hidden', settings.instrument !== 'both');
+    $('editionLabel').textContent = Content.INSTRUMENTS[settings.instrument].name + ' class edition';
+    Content.SUBCATS.forEach((sc) => {
+      if (!sc.describe) return;
+      const desc = document.querySelector('.subcat[data-sub="' + sc.id + '"] .sub-desc');
+      if (desc) desc.textContent = sc.describe(settings);
+    });
+  }
+
   function bindSetup() {
     const changed = () => { saveSettings(); updateSetupState(); };
+
+    $('instrumentSwitch').addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b || b.dataset.inst === settings.instrument) return;
+      // If every string of the old instrument was picked, pick every string of the new one.
+      const sameSet = (a, b2) => a.length === b2.length && a.every((x) => b2.indexOf(x) >= 0);
+      const oldStrings = Content.INSTRUMENTS[settings.instrument].strings;
+      settings.instrument = b.dataset.inst;
+      if (sameSet(picked('home'), oldStrings)) settings.sel.home = Content.INSTRUMENTS[settings.instrument].strings.slice();
+      changed();
+    });
+    $('clefMode').addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      settings.clefMode = b.dataset.clef;
+      changed();
+    });
 
     $('tabBar').addEventListener('click', (e) => {
       const tab = e.target.closest('.tab');
@@ -439,7 +477,7 @@
         return;
       }
       const sel = usable(sc.id).length ? usable(sc.id) : allChips(sc.id).filter((id) => !chipState(sc, id));
-      const items = sc.pool(sel, settings);
+      const items = sc.pool(sel, settings).map((it, i) => Content.resolve(it, Content.clefFor(settings, i)));
       html += '<h3>' + title + '</h3><div class="preview-grid">' +
         items.map((it) => '<div class="pcard">' + it.svg + '<b>' + it.say + '</b><span>' + it.detail + '</span></div>').join('') + '</div>';
     });
@@ -597,7 +635,9 @@
     return {
       roundIdx: roundIdx, group: group, rhythm: !!group.rhythm, meterId: meterId, base: base, meter: m,
       cardLen: group.rhythm ? lens.reduce((a, b) => a + b, 0) : 1,
-      level: level, items: makeItems(cardPicker(group, meterId), level), beats: beats, bpm: bpmFor(roundIdx)
+      level: level, beats: beats, bpm: bpmFor(roundIdx),
+      // Cards that show notes take the clef for their position (alternating in a mixed class).
+      items: makeItems(cardPicker(group, meterId), level).map((it, i) => Content.resolve(it, Content.clefFor(settings, i)))
     };
   }
 

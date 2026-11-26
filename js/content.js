@@ -64,12 +64,15 @@
 
   const SHARP_POS = [8, 5, 9, 6, 3, 7, 4];   // F C G D A E B (treble staff positions)
   const FLAT_POS = [4, 7, 3, 6, 2, 5, 1];    // B E A D G C F
+  // In alto clef the same pattern sits one step lower (F♯ in the top space, B♭ in the second space).
+  const KEYSIG_SHIFT = { treble: 0, alto: -1 };
   const KEYSIG_X = 38;
 
-  // The accidentals of a key signature after a treble clef; returns { svg, end }.
-  function keySignature(type, count, top) {
+  // The accidentals of a key signature after a treble or alto clef; returns { svg, end }.
+  function keySignature(type, count, top, clef) {
     if (!count) return { svg: '', end: KEYSIG_X };
-    const positions = type === '#' ? SHARP_POS : FLAT_POS;
+    const shift = KEYSIG_SHIFT[clef || 'treble'] || 0;
+    const positions = (type === '#' ? SHARP_POS : FLAT_POS).map((p) => p + shift);
     const step = N.accidentalWidth(type) + 2;
     let s = '';
     for (let i = 0; i < count; i++) s += N.accidental(type, KEYSIG_X + i * step, N.posToY(positions[i], top));
@@ -77,20 +80,21 @@
   }
 
   /*
-   * One note on a treble staff. opts.key: { type, n } draws that key signature and no accidental
-   * on the note (it's already in the key).
+   * One note on a treble (or alto) staff. opts.key: { type, n } draws that key signature and no
+   * accidental on the note (it's already in the key). opts.clef: 'treble' | 'alto'.
    */
   function noteSvg(name, octave, opts) {
     opts = opts || {};
+    const clef = opts.clef || 'treble';
     const step = name[0];
     const acc = opts.key ? '' : name.slice(1);
-    const pos = N.staffPos(step, octave, 'treble');
+    const pos = N.staffPos(step, octave, clef);
     // Room needed above the note head: a flat reaches highest, then a sharp.
     const clearance = acc === 'b' ? 18 : acc ? 13 : 6;
     // Very high notes: slide the staff down (up to 17) so the ledger lines fit on the card.
     const top = TOP + Math.min(17, Math.max(0, 13 - (N.posToY(pos, TOP) - clearance)));
     const y = N.posToY(pos, top);
-    const sig = opts.key ? keySignature(opts.key.type, opts.key.n, top) : { svg: '', end: 0 };
+    const sig = opts.key ? keySignature(opts.key.type, opts.key.n, top, clef) : { svg: '', end: 0 };
     const x = Math.max(88, sig.end + 18);
     const width = Math.max(130, x + 20);
     const up = pos < 4;
@@ -99,15 +103,18 @@
     const n = N.note(x, y, { dur: 'q', up: up, stemLen: stemLen });
     // A slightly taller frame than other cards, taller still for the very highest notes.
     const vbTop = Math.min(NOTE_VB_TOP, Math.floor(y - clearance - 1));
-    return N.svg('0 ' + vbTop + ' ' + width + ' ' + (NOTE_VB_BOTTOM - vbTop),
-      N.staff(3, width - 3, top) + N.clef('treble', 6, top) + sig.svg + N.ledgers(x, pos, top) +
+    // Very low notes (viola's C string in treble clef) make the frame taller at the bottom.
+    const vbBottom = Math.max(NOTE_VB_BOTTOM, Math.ceil(y + (up ? 8 : stemLen + 4)));
+    return N.svg('0 ' + vbTop + ' ' + width + ' ' + (vbBottom - vbTop),
+      N.staff(3, width - 3, top) + N.clef(clef, 6, top) + sig.svg + N.ledgers(x, pos, top) +
       N.accidental(acc, x - N.width('noteheadBlack') / 2 - 2.5 - N.accidentalWidth(acc), y) + n.svg);
   }
 
-  // Lowest MIDI note of a tonic at or above the violin's open G (G3 = 55).
-  function lowestTonic(tonic) {
-    let m = toMidi(tonic, 3);
-    if (m < 55) m += 12;
+  // Lowest MIDI note of a tonic at or above the lowest open string (violin G3 = 55, viola C3 = 48).
+  function lowestTonic(tonic, lowest) {
+    lowest = lowest || 55;
+    let m = toMidi(tonic, 2);
+    while (m < lowest) m += 12;
     return m;
   }
 
@@ -131,27 +138,72 @@
    * Note names: home position on the violin
    * ========================================================= */
 
+  // Open strings, low to high. Viola's G, D and A are the same pitches as the violin's.
   const STRINGS = [
+    { id: 'C', name: 'C string', open: 48 },
     { id: 'G', name: 'G string', open: 55 },
     { id: 'D', name: 'D string', open: 62 },
     { id: 'A', name: 'A string', open: 69 },
     { id: 'E', name: 'E string', open: 76 }
   ];
+
+  /*
+   * The page-wide instrument switch. 'both' is a mixed violin and viola class: it uses the lowest
+   * note of either (the viola's C), and cards that show notes can be in treble or alto clef.
+   */
+  const INSTRUMENTS = {
+    violin: { name: 'Violin', strings: ['G', 'D', 'A', 'E'], lowest: 55, clef: 'treble' },
+    viola: { name: 'Viola', strings: ['C', 'G', 'D', 'A'], lowest: 48, clef: 'alto' },
+    both: { name: 'Violin & viola', strings: ['C', 'G', 'D', 'A', 'E'], lowest: 48, clef: 'treble' }
+  };
+  const INSTRUMENT_IDS = ['violin', 'viola', 'both'];
+  const CLEF_MODES = ['alternate', 'treble', 'alto'];   // for 'both'; the first is the default
+  const instrumentOf = (s) => INSTRUMENTS[(s && s.instrument) || 'violin'] || INSTRUMENTS.violin;
+
+  // The clef for the card at position `index` in a round.
+  function clefFor(s, index) {
+    const inst = (s && s.instrument) || 'violin';
+    if (inst !== 'both') return INSTRUMENTS[inst].clef;
+    const mode = s.clefMode || CLEF_MODES[0];
+    if (mode === 'alternate') return index % 2 ? 'alto' : 'treble';
+    return mode;
+  }
+
+  /*
+   * Cards that show notes are drawn per clef: item.draw(clef) returns the svg. resolve() gives
+   * the card as shown at a position, with its svg filled in (drawings are cached).
+   */
+  function resolve(item, clef) {
+    if (!item.draw) return item;
+    item._cache = item._cache || {};
+    if (!item._cache[clef]) item._cache[clef] = item.draw(clef);
+    return Object.assign({}, item, { svg: item._cache[clef] });
+  }
   // Semitones above the open string -> finger in first position.
   const FINGER = ['open', 'low 1st', '1st', 'low 2nd', 'high 2nd', '3rd', 'high 3rd', '4th'];
   // Home position, high-2 pattern: G A B C · D E F# G · A B C# D · E F# G# A B
-  const HOME_SEMIS = { G: [0, 2, 4, 5], D: [0, 2, 4, 5], A: [0, 2, 4, 5], E: [0, 2, 4, 5, 7] };
+  // The viola's C string uses the same high-2 pattern: C D E F.
+  const HOME_SEMIS = { C: [0, 2, 4, 5], G: [0, 2, 4, 5], D: [0, 2, 4, 5], A: [0, 2, 4, 5], E: [0, 2, 4, 5, 7] };
 
-  function homePool(strings) {
+  // Home-position notes in one-line form for the subcategory description.
+  function homeSummary(s) {
+    return instrumentOf(s).strings.map((id) => {
+      const st = STRINGS.find((x) => x.id === id);
+      return HOME_SEMIS[id].map((semi) => pretty(NATURAL_PC[(st.open + semi) % 12] || SHARP_PC[(st.open + semi) % 12])).join(' ');
+    }).join(' · ') + ', on the strings you pick';
+  }
+
+  function homePool(strings, settings) {
     const out = [];
-    STRINGS.filter((s) => strings.indexOf(s.id) >= 0).forEach((s) => {
+    const allowed = instrumentOf(settings).strings;
+    STRINGS.filter((s) => strings.indexOf(s.id) >= 0 && allowed.indexOf(s.id) >= 0).forEach((s) => {
       HOME_SEMIS[s.id].forEach((semi) => {
         const midi = s.open + semi;
         const name = NATURAL_PC[midi % 12] || SHARP_PC[midi % 12];
         const octave = Math.floor(midi / 12) - 1;
         out.push({
           id: 'note-home-' + midi,
-          svg: noteSvg(name, octave),
+          draw: (clef) => noteSvg(name, octave, { clef: clef }),
           say: sayName(name),
           detail: pretty(name) + octave + ' · ' + s.name + ', ' + FINGER[semi] + (semi === 0 ? '' : ' finger')
         });
@@ -179,9 +231,9 @@
         text: pretty(o.key) + ' ' + (o.type === 'major' ? 'major' : o.type + ' minor') }))
   }));
 
-  // Note names for the range menus: the naturals from open G up to E6.
+  // Note names for the range menus: the naturals from the viola's open C up to E6.
   const RANGE_NOTES = [];
-  for (let m = 55; m <= 88; m++) if (NATURAL_PC[m % 12]) RANGE_NOTES.push(NATURAL_PC[m % 12] + (Math.floor(m / 12) - 1));
+  for (let m = 48; m <= 88; m++) if (NATURAL_PC[m % 12]) RANGE_NOTES.push(NATURAL_PC[m % 12] + (Math.floor(m / 12) - 1));
   const rangeMidi = (s) => toMidi(s.replace(/\d+$/, ''), Number(s.match(/\d+$/)[0]));
 
   // Spellings for the "pick notes" chips: naturals, then sharps, then flats.
@@ -194,7 +246,7 @@
   function pitchItem(name, octave, extra) {
     return {
       id: 'pitch-' + name + octave,
-      svg: noteSvg(name, octave),
+      draw: (clef) => noteSvg(name, octave, { clef: clef }),
       say: sayName(name),
       detail: label(name, octave) + (extra ? ' · ' + extra : '')
     };
@@ -203,7 +255,7 @@
   function scaleItems(s) {
     const type = SCALE_TYPES[s.scaleType] || SCALE_TYPES.major;
     const tonic = s.scaleKey;
-    const start = lowestTonic(tonic);
+    const start = lowestTonic(tonic, instrumentOf(s).lowest);
     const octaves = s.scaleOctaves === 2 ? 2 : 1;
     const forms = [{ degrees: spellScale(tonic, type.steps), note: type.down ? 'raised, going up' : '' }];
     if (type.down) forms.push({ degrees: spellScale(tonic, type.down), note: 'natural, coming down' });
@@ -230,7 +282,9 @@
     let lo = rangeMidi(RANGE_NOTES.indexOf(s.rangeLow) >= 0 ? s.rangeLow : 'G3');
     let hi = rangeMidi(RANGE_NOTES.indexOf(s.rangeHigh) >= 0 ? s.rangeHigh : 'B5');
     if (lo > hi) { const t = lo; lo = hi; hi = t; }
-    return [lo, hi];
+    // Nothing below the instrument's lowest open string.
+    const lowest = instrumentOf(s).lowest;
+    return [Math.max(lo, lowest), Math.max(hi, lowest)];
   }
 
   function chromaticItems(s) {
@@ -348,7 +402,7 @@
     return {
       id: 'key-' + k.major,
       chip: keyChipLabel(k),
-      svg: card(staff5() + N.clef('treble', 6, TOP) + keySignature(k.type, k.n, TOP).svg),
+      draw: (clef) => card(staff5() + N.clef(clef, 6, TOP) + keySignature(k.type, k.n, TOP, clef).svg),
       say: pretty(k.major) + ' major',
       detail: accs + ' · relative minor: ' + pretty(k.minor) + ' minor'
     };
@@ -362,14 +416,14 @@
   function degreePool(keys) {
     const out = [];
     KEY_PAIRS.filter((k) => keys.indexOf(k.major) >= 0).forEach((k) => {
-      const start = lowestTonic(k.major);
+      const start = lowestTonic(k.major, 55);
       const degrees = spellScale(k.major, SCALE_TYPES.major.steps);
       degrees.concat([{ name: k.major, semi: 12, degree: 1 }]).forEach((d) => {
         const midi = start + d.semi;
         const octave = octaveFor(d.name, midi);
         out.push({
           id: 'deg-' + k.major + '-' + d.name + octave,
-          svg: noteSvg(d.name, octave, { key: k }),
+          draw: (clef) => noteSvg(d.name, octave, { key: k, clef: clef }),
           say: degreeMark(d.degree),
           detail: label(d.name, octave) + ' in ' + pretty(k.major) + ' major · ' + DEGREE_NAMES[d.degree - 1]
         });
@@ -836,7 +890,10 @@
   const CATEGORIES = [
     { id: 'notes', tab: 'cards', name: 'Note names', subcats: [
       { id: 'home', name: 'Home position', desc: 'G A B C · D E F♯ G · A B C♯ D · E F♯ G♯ A B, on the strings you pick',
-        chips: STRINGS.map((s) => ({ id: s.id, label: s.name })), pool: (sel) => homePool(sel) },
+        chips: STRINGS.map((s) => ({ id: s.id, label: s.name })), pool: (sel, s) => homePool(sel, s),
+        // Only the strings the instrument has.
+        chipState: (id, s) => (instrumentOf(s).strings.indexOf(id) < 0 ? 'hidden' : ''),
+        describe: homeSummary },
       { id: 'diatonic', name: 'Diatonic note names', toggle: true, desc: 'A scale, chromatic in a range, or notes you pick',
         chips: [{ id: 'on', label: 'On' }], pool: (sel, s) => pitchPool(s) }
     ] },
@@ -867,6 +924,7 @@
   const subById = (id) => SUBCATS.find((sc) => sc.id === id);
 
   global.Content = {
+    INSTRUMENTS: INSTRUMENTS, INSTRUMENT_IDS: INSTRUMENT_IDS, CLEF_MODES: CLEF_MODES, clefFor: clefFor, resolve: resolve,
     TABS: TABS, CATEGORIES: CATEGORIES, SUBCATS: SUBCATS, subById: subById, STRINGS: STRINGS, RELOCATED_CHIPS: RELOCATED_CHIPS,
     METERS: METERS, METER_IDS: METER_IDS, rhythmItem: rhythmItem,
     SCALE_CHOICES: SCALE_CHOICES, RANGE_NOTES: RANGE_NOTES, PICK_ROWS: PICK_ROWS,

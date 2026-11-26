@@ -28,6 +28,17 @@ Pick one category or several. Picking several mixes them together in each round.
 3. **Say it!**: each card lights up on the beat (rhythm cards stay lit for one measure)
 4. **Answers** (optional): every card shows what to say
 
+**Card order.** By default the first rounds follow patterns, where each letter is a different card:
+
+| Round | Level | Example patterns |
+| --- | --- | --- |
+| 1–2 | Easy | `AABB AABB`, `AAAA BBBB`, `ABBB ABBB`, `AABB CCCC` |
+| 3 | Medium | `ABAB BABA`, `ABAB CDCD` |
+| 4 | Hard | `ABCA BCAB`, `ABAA BCBB` |
+| 5 on | Random | no pattern |
+
+You can switch to random every round instead. The current level shows under the round number.
+
 Options: starting tempo, number of rounds, speed up each round, show answers, and memory mode, where cards flip face down before the class says them. Settings are saved in the browser.
 
 **Preview cards** shows every card in the selected categories with its answer.

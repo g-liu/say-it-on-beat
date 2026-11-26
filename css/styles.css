@@ -138,6 +138,7 @@ kbd {
   font-weight: 800; font-size: clamp(1rem, 3.2vmin, 2.4rem);
 }
 .round { color: var(--muted); }
+.round .level { display: block; font-size: 0.55em; font-weight: 600; opacity: 0.8; }
 .phase {
   padding: 0.25em 1em; border-radius: 999px; background: #2c3470; min-width: 7em; text-align: center;
   transition: background 0.2s, color 0.2s;

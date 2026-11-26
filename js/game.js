@@ -28,6 +28,7 @@
     showAnswers: true,
     memory: false,
     volume: 0.8,
+    cardOrder: 'patterns',       // 'patterns' (easy → medium → hard → random) | 'random'
     // Diatonic note names
     pitchMode: 'scale',          // 'scale' | 'chromatic' | 'pick'
     scaleType: 'major',          // 'major' | 'natural' | 'harmonic' | 'melodic'
@@ -233,6 +234,8 @@
 
     $('rounds').value = String(settings.rounds);
     $('rounds').addEventListener('change', () => { settings.rounds = Number($('rounds').value); saveSettings(); });
+    $('cardOrder').value = settings.cardOrder === 'random' ? 'random' : 'patterns';
+    $('cardOrder').addEventListener('change', () => { settings.cardOrder = $('cardOrder').value; saveSettings(); });
     $('rhythmLevel').value = settings.rhythmLevel;
     $('rhythmLevel').addEventListener('change', () => { settings.rhythmLevel = $('rhythmLevel').value; saveSettings(); });
 
@@ -309,18 +312,60 @@
     return groups;
   }
 
-  function makeItems(group) {
+  /*
+   * Card order. Each letter stands for a different card. Early rounds follow
+   * patterns that get harder, and later rounds are random.
+   */
+  const PATTERNS = {
+    easy: ['AABBAABB', 'AAAABBBB', 'ABBBABBB', 'AABBCCCC', 'AAABAAAB'],
+    medium: ['ABABBABA', 'ABABCDCD', 'ABBAABBA', 'ABACABAC'],
+    hard: ['ABCABCAB', 'ABAABCBB', 'ABCDABCD', 'ABCBACBA']
+  };
+  const LEVEL_BY_ROUND = ['easy', 'easy', 'medium', 'hard'];   // round 5 on: random
+  const LEVEL_NAMES = { easy: 'Easy pattern', medium: 'Medium pattern', hard: 'Hard pattern', random: 'Random' };
+
+  function levelFor(roundIdx) {
+    if (settings.cardOrder === 'random') return 'random';
+    return LEVEL_BY_ROUND[roundIdx] || 'random';
+  }
+
+  function pickFrom(group) {
+    const cat = group.cats[Math.floor(Math.random() * group.cats.length)];
+    return Content.pick(cat, settings, Math.random);
+  }
+
+  function randomItems(group) {
     const items = [];
     let guard = 0;
     while (items.length < CARDS_PER_ROUND && guard++ < 200) {
-      const cat = group.cats[Math.floor(Math.random() * group.cats.length)];
-      const item = Content.pick(cat, settings, Math.random);
+      const item = pickFrom(group);
       const n = items.length;
-      // Repeats are part of the fun, but not three of the same card in a row.
+      // Repeats happen, but not three of the same card in a row.
       if (n >= 2 && items[n - 1].id === item.id && items[n - 2].id === item.id) continue;
       items.push(item);
     }
     return items;
+  }
+
+  function makeItems(group, level) {
+    if (level === 'random') return randomItems(group);
+    // A different pattern from last round when possible.
+    const choices = PATTERNS[level].filter((p) => p !== game.lastPattern);
+    const pattern = choices[Math.floor(Math.random() * choices.length)];
+    game.lastPattern = pattern;
+
+    const chosen = {};
+    const used = new Set();
+    pattern.split('').forEach((letter) => {
+      if (chosen[letter]) return;
+      let item = pickFrom(group);
+      // Each letter is a card with a different answer (G3 and G4 would both be "G"),
+      // unless the pool is too small to allow it.
+      for (let tries = 0; used.has(item.say) && tries < 60; tries++) item = pickFrom(group);
+      used.add(item.say);
+      chosen[letter] = item;
+    });
+    return pattern.split('').map((letter) => chosen[letter]);
   }
 
   function isLastRound(roundIdx) { return settings.rounds > 0 && roundIdx >= settings.rounds - 1; }
@@ -351,7 +396,8 @@
     if (!isLastRound(roundIdx)) beats[beats.length - 1].fill = true;
     beats.forEach((b, i) => { b.barPos = i % m; });
 
-    return { roundIdx: roundIdx, group: group, meter: m, items: makeItems(group), beats: beats, bpm: bpmFor(roundIdx) };
+    const level = levelFor(roundIdx);
+    return { roundIdx: roundIdx, group: group, meter: m, level: level, items: makeItems(group, level), beats: beats, bpm: bpmFor(roundIdx) };
   }
 
   /* ============================ scheduler ============================ */
@@ -430,7 +476,7 @@
     game.cards = Array.from(grid.children);
 
     const total = settings.rounds > 0 ? ' of ' + settings.rounds : '';
-    $('roundLabel').textContent = 'Round ' + (plan.roundIdx + 1) + total;
+    $('roundLabel').innerHTML = 'Round ' + (plan.roundIdx + 1) + total + '<span class="level">' + LEVEL_NAMES[plan.level] + '</span>';
     $('bpmLabel').textContent = plan.bpm + ' BPM';
     $('beatDots').innerHTML = Array.from({ length: plan.meter }, (_, i) => '<i' + (i === 0 ? ' class="down"' : '') + '></i>').join('');
     setPhase(plan.beats[0].phase === 'count' ? 'Get ready' : 'Watch', plan.beats[0].phase === 'count' ? '' : 'watch');

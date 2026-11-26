@@ -186,19 +186,41 @@
     osc.stop(t + 0.07);
   };
 
+  // A hand clap: a few quick noise bursts and a short tail.
+  Engine.prototype.clap = function (t, v) {
+    v = v || 0.8;
+    [0, 0.011, 0.022].forEach((dt, i) => {
+      const n = this.noiseSrc(t + dt, i === 2 ? 0.2 : 0.03);
+      const bp = this.ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 1250;
+      bp.Q.value = 1.1;
+      n.connect(bp);
+      bp.connect(this.env(t + dt, v * (i === 2 ? 0.9 : 0.6), 0.001, i === 2 ? 0.16 : 0.012));
+    });
+  };
+
+  // What each beat of the bar does, by number of beats: K = strong kick, k = kick, S = snare, s = light snare.
+  const ROLES = {
+    1: ['K'], 2: ['K', 'S'], 3: ['K', 's', 's'], 4: ['K', 'S', 'k', 'S'], 5: ['K', 's', 's', 'k', 'S']
+  };
+
   /*
    * One beat of the groove.
-   * b = { t, spb, barPos, meter, bar, phase, fill, crash, bell }
+   * b = { t, spb (seconds in this beat), barPos, meter (beats per bar), sub (2 or 3 divisions),
+   *       bar, phase, fill, crash, bell }
    *   phase: 'count' | 'reveal' | 'say' | 'review' | 'break' | 'end'
    */
   Engine.prototype.playBeat = function (b) {
-    const t = b.t, spb = b.spb, half = spb / 2;
+    const t = b.t, spb = b.spb;
+    const sub = b.sub || 2, step = spb / sub;
     const chord = PROGRESSION[b.bar % PROGRESSION.length];
     const down = b.barPos === 0;
+    const meter = b.meter || 4;
 
     if (b.phase === 'count') {
       this.stick(t, down);
-      this.hat(t + half, 0.12);
+      for (let j = 1; j < sub; j++) this.hat(t + j * step, 0.12);
       return;
     }
     if (b.phase === 'end') {
@@ -213,25 +235,28 @@
     if (b.crash) this.crash(t);
 
     // Drums
-    if (b.meter === 3) {
-      if (down) this.kick(t, 1);
-      else if (!chill) this.kick(t, 0.55);
-      if (!down) this.snare(t, chill ? 0.25 : 0.45);
-    } else {
-      if (!chill || b.barPos % 2 === 0) this.kick(t, b.barPos % 2 === 0 ? 1 : 0.85);
-      if (b.barPos % 2 === 1) this.snare(t, chill ? 0.4 : 0.75);
+    const role = (ROLES[meter] || ROLES[4])[b.barPos % (ROLES[meter] || ROLES[4]).length];
+    const duple = meter === 2 || meter === 4;
+    if (role === 'K') this.kick(t, 1);
+    else if (role === 'k') this.kick(t, chill ? 0.7 : 0.85);
+    else if (!chill && duple) this.kick(t, 0.6);
+    else if (!chill) this.kick(t, 0.45);
+    if (role === 'S') this.snare(t, chill ? 0.4 : 0.75);
+    else if (role === 's') this.snare(t, chill ? 0.25 : 0.45);
+    for (let j = 0; j < sub; j++) {
+      const open = j === sub - 1 && b.phase === 'say' && b.barPos === meter - 1;
+      this.hat(t + j * step, j === 0 ? (chill ? 0.1 : 0.16) : (chill ? 0.14 : 0.24), open);
     }
-    this.hat(t, chill ? 0.1 : 0.16);
-    this.hat(t + half, chill ? 0.14 : 0.24, b.phase === 'say' && b.barPos === b.meter - 1);
 
     // Bass and chords
-    if (b.meter === 3) {
+    if (meter === 3 && sub === 2) {
+      // Waltz: bass on 1, chords on 2 and 3.
       if (down) this.bass(t, chord.bass * 2, spb * 0.9, 0.38);
       else this.stab(t, chord.chord, spb * 0.35, chill ? 0.06 : 0.09);
     } else {
-      this.bass(t, chord.bass * 2, spb * 0.42, 0.36);
-      if (!chill) this.bass(t + half, chord.bass * 4, spb * 0.3, 0.22);
-      if (b.barPos % 2 === 1) this.stab(t + half, chord.chord, spb * 0.3, chill ? 0.06 : 0.1);
+      this.bass(t, chord.bass * 2, step * 0.85, 0.36);
+      if (!chill) this.bass(t + (sub - 1) * step, chord.bass * 4, step * 0.6, 0.22);
+      if (role === 'S' || role === 's') this.stab(t + (sub - 1) * step, chord.chord, step * 0.6, chill ? 0.06 : 0.1);
     }
 
     if (b.bell != null) this.bell(t, BELLS[b.bell % BELLS.length]);

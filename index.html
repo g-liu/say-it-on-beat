@@ -44,15 +44,7 @@
         </div>
 
         <div class="sub" id="scaleSub">
-          <div class="row2">
-            <select id="scaleKey" aria-label="Key"></select>
-            <select id="scaleType" aria-label="Scale type">
-              <option value="major">Major</option>
-              <option value="natural">Natural minor</option>
-              <option value="harmonic">Harmonic minor</option>
-              <option value="melodic">Melodic minor</option>
-            </select>
-          </div>
+          <select id="scalePick" aria-label="Scale"></select>
           <div class="chips" id="octaveChips">
             <button type="button" class="chip" data-oct="1">1 octave</button>
             <button type="button" class="chip" data-oct="2">2 octaves</button>
@@ -83,7 +75,7 @@
 
       <div class="option">
         <label for="tempo">Starting tempo <output id="tempoOut">90 BPM</output></label>
-        <input type="range" id="tempo" min="60" max="160" step="2" value="90">
+        <input type="range" id="tempo" min="40" max="220" step="2" value="90">
       </div>
 
       <div class="option">
@@ -104,8 +96,13 @@
         </select>
       </div>
 
+      <div class="option" id="speedOption">
+        <label class="toggle speed-toggle"><input type="checkbox" id="speedUp"><span>Speed up each round</span><output id="speedOut">5%</output></label>
+        <input type="range" id="speedPct" min="1" max="25" step="1" value="5" aria-label="Speed up each round by this percent">
+        <p class="sub-hint" id="speedHint"></p>
+      </div>
+
       <div class="option toggles">
-        <label class="toggle"><input type="checkbox" id="speedUp"><span>Speed up each round</span></label>
         <label class="toggle"><input type="checkbox" id="showAnswers"><span>Show answers after each round</span></label>
         <label class="toggle"><input type="checkbox" id="memory"><span>Memory mode (cards flip over before you say them)</span></label>
       </div>

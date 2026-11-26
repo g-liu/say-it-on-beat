@@ -13,8 +13,9 @@
   const $ = (id) => document.getElementById(id);
 
   const CARDS_PER_ROUND = 8;
-  const SPEED_STEP = 6;       // BPM added each round when "speed up" is on
-  const MAX_BPM = 180;
+  const MIN_START_BPM = 40, MAX_START_BPM = 220;
+  const MAX_BPM = 400;        // the fastest a game can get with speed-up on
+  const MIN_SPEED_PCT = 1, MAX_SPEED_PCT = 25;
   const LOOKAHEAD = 0.15;     // seconds of audio scheduled ahead
   const STORE_KEY = 'sayItOnBeat.settings.v1';
 
@@ -25,6 +26,7 @@
     bpm: 90,
     rounds: 5,
     speedUp: true,
+    speedUpPct: 5,               // percent faster each round
     showAnswers: true,
     memory: false,
     volume: 0.8,
@@ -39,9 +41,8 @@
     pitchClasses: ['C', 'D', 'E', 'F', 'G', 'A', 'B']
   };
 
-  const MINOR_TYPES = ['natural', 'harmonic', 'melodic'];
-  const SCALE_TYPE_OK = (t) => t === 'major' || MINOR_TYPES.indexOf(t) >= 0;
-  const keysFor = (type) => (MINOR_TYPES.indexOf(type) >= 0 ? Content.MINOR_KEYS : Content.MAJOR_KEYS);
+  const SCALE_VALUES = [].concat.apply([], Content.SCALE_CHOICES.map((g) => g.options.map((o) => o.value)));
+  const clamp = (v, lo, hi, dflt) => (isFinite(v) ? Math.min(hi, Math.max(lo, Number(v))) : dflt);
 
   /* ============================ settings ============================ */
 
@@ -56,8 +57,12 @@
     }
     out.categories = out.categories.filter((id) => Content.byId(id));
     if (['scale', 'chromatic', 'pick'].indexOf(out.pitchMode) < 0) out.pitchMode = DEFAULTS.pitchMode;
-    if (!SCALE_TYPE_OK(out.scaleType)) out.scaleType = DEFAULTS.scaleType;
-    if (keysFor(out.scaleType).indexOf(out.scaleKey) < 0) out.scaleKey = keysFor(out.scaleType)[0];
+    if (SCALE_VALUES.indexOf(out.scaleKey + ':' + out.scaleType) < 0) {
+      out.scaleKey = DEFAULTS.scaleKey;
+      out.scaleType = DEFAULTS.scaleType;
+    }
+    out.bpm = clamp(out.bpm, MIN_START_BPM, MAX_START_BPM, DEFAULTS.bpm);
+    out.speedUpPct = Math.round(clamp(out.speedUpPct, MIN_SPEED_PCT, MAX_SPEED_PCT, DEFAULTS.speedUpPct));
     out.scaleOctaves = out.scaleOctaves === 2 ? 2 : 1;
     if (Content.RANGE_NOTES.indexOf(out.rangeLow) < 0) out.rangeLow = DEFAULTS.rangeLow;
     if (Content.RANGE_NOTES.indexOf(out.rangeHigh) < 0) out.rangeHigh = DEFAULTS.rangeHigh;
@@ -86,6 +91,10 @@
     $('pcChips').innerHTML = [].concat.apply([], Content.PICK_ROWS).map((p) =>
       '<button type="button" class="chip" data-pc="' + p + '">' + Content.pretty(p) + '</button>'
     ).join('');
+    $('scalePick').innerHTML = Content.SCALE_CHOICES.map((g) =>
+      '<optgroup label="' + g.label + '">' +
+      g.options.map((o) => '<option value="' + o.value + '">' + o.text + '</option>').join('') + '</optgroup>'
+    ).join('');
     const rangeOpts = Content.RANGE_NOTES.map((n) => '<option value="' + n + '">' + n + '</option>').join('');
     $('rangeLow').innerHTML = rangeOpts;
     $('rangeHigh').innerHTML = rangeOpts;
@@ -101,12 +110,7 @@
     $('pickSub').classList.toggle('hidden', mode !== 'pick');
     $('rangeSub').classList.toggle('hidden', mode === 'scale');
 
-    const keys = keysFor(settings.scaleType);
-    const minor = MINOR_TYPES.indexOf(settings.scaleType) >= 0;
-    $('scaleKey').innerHTML = keys.map((k) =>
-      '<option value="' + k + '">' + Content.pretty(k) + (minor ? ' minor' : ' major') + '</option>').join('');
-    $('scaleKey').value = settings.scaleKey;
-    $('scaleType').value = settings.scaleType;
+    $('scalePick').value = settings.scaleKey + ':' + settings.scaleType;
     document.querySelectorAll('#octaveChips .chip').forEach((b) => {
       b.setAttribute('aria-pressed', String(Number(b.dataset.oct) === settings.scaleOctaves));
     });
@@ -178,13 +182,12 @@
       settings.pitchMode = b.dataset.mode;
       changed();
     });
-    $('scaleType').addEventListener('change', () => {
-      settings.scaleType = $('scaleType').value;
-      const keys = keysFor(settings.scaleType);
-      if (keys.indexOf(settings.scaleKey) < 0) settings.scaleKey = keys[0];
+    $('scalePick').addEventListener('change', () => {
+      const parts = $('scalePick').value.split(':');
+      settings.scaleKey = parts[0];
+      settings.scaleType = parts[1];
       changed();
     });
-    $('scaleKey').addEventListener('change', () => { settings.scaleKey = $('scaleKey').value; changed(); });
     $('octaveChips').addEventListener('click', (e) => {
       const b = e.target.closest('.chip');
       if (!b) return;
@@ -239,11 +242,23 @@
     $('rhythmLevel').value = settings.rhythmLevel;
     $('rhythmLevel').addEventListener('change', () => { settings.rhythmLevel = $('rhythmLevel').value; saveSettings(); });
 
+    const speed = $('speedPct');
+    speed.value = settings.speedUpPct;
+    speed.addEventListener('input', () => {
+      settings.speedUpPct = Number(speed.value);
+      saveSettings();
+      updateSpeed();
+    });
+    $('speedUp').addEventListener('change', updateSpeed);
+    $('rounds').addEventListener('change', updateSpeed);
+    tempo.addEventListener('input', updateSpeed);
+
     ['speedUp', 'showAnswers', 'memory'].forEach((key) => {
       const el = $(key);
       el.checked = !!settings[key];
       el.addEventListener('change', () => { settings[key] = el.checked; saveSettings(); });
     });
+    updateSpeed();   // after the checkboxes show the saved settings
 
     const vol = $('volume');
     vol.value = settings.volume;
@@ -370,7 +385,22 @@
 
   function isLastRound(roundIdx) { return settings.rounds > 0 && roundIdx >= settings.rounds - 1; }
   function bpmFor(roundIdx) {
-    return Math.min(MAX_BPM, settings.bpm + (settings.speedUp ? roundIdx * SPEED_STEP : 0));
+    const factor = settings.speedUp ? Math.pow(1 + settings.speedUpPct / 100, roundIdx) : 1;
+    return Math.min(MAX_BPM, Math.round(settings.bpm * factor));
+  }
+
+  // Shows the percent and what the first few rounds' tempos will be.
+  function updateSpeed() {
+    const on = $('speedUp').checked;
+    settings.speedUp = on;
+    $('speedOut').textContent = settings.speedUpPct + '%';
+    $('speedPct').disabled = !on;
+    $('speedOption').classList.toggle('off', !on);
+    const n = settings.rounds > 0 ? Math.min(settings.rounds, 6) : 6;
+    const list = [];
+    for (let i = 0; i < n; i++) list.push(bpmFor(i));
+    const more = settings.rounds === 0 || settings.rounds > n ? ' \u2192 \u2026' : '';
+    $('speedHint').textContent = on ? list.join(' \u2192 ') + more + ' BPM (tops out at ' + MAX_BPM + ')' : 'Same tempo every round';
   }
 
   /*

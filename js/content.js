@@ -12,11 +12,15 @@
 
   // Single-beat cards share one frame so every card in a round is drawn at the same scale.
   const CARD_VB = '0 12 130 100';
+  const NOTE_VB_TOP = 12, NOTE_VB_BOTTOM = 120;   // note-name cards
   const TOP = 40;                 // top staff line
   const MID = TOP + 20;           // middle staff line
 
-  const SHARP = '♯', FLAT = '♭';
-  const pretty = (name) => name.replace('#', SHARP).replace('b', FLAT);
+  const SHARP = '\u266F', FLAT = '\u266D', DOUBLE_SHARP = '\uD834\uDD2A';
+  const ACC_SYMBOL = { '#': SHARP, b: FLAT, x: DOUBLE_SHARP };
+  const ACC_WORD = { '#': ' sharp', b: ' flat', x: ' double sharp' };
+  // 'F#' -> 'F♯'. Names are a letter plus an optional accidental: # b x (double sharp).
+  const pretty = (name) => name[0] + (ACC_SYMBOL[name.slice(1)] || name.slice(1));
 
   function card(body) { return N.svg(CARD_VB, body); }
   function staff5() { return N.staff(3, 127, TOP); }
@@ -41,19 +45,24 @@
     const step = name[0];
     const acc = name.length > 1 ? name[1] : '';
     const pos = N.staffPos(step, octave, 'treble');
-    // Very high notes: slide the staff down so the ledger lines still fit on the card.
-    const top = TOP + Math.min(17, Math.max(0, 14 - (N.posToY(pos, TOP) - 6)));
+    // Room needed above the note head: a flat reaches highest, then a sharp.
+    const clearance = acc === 'b' ? 18 : acc ? 13 : 6;
+    // Very high notes: slide the staff down (up to 17) so the ledger lines fit on the card.
+    const top = TOP + Math.min(17, Math.max(0, 13 - (N.posToY(pos, TOP) - clearance)));
     const y = N.posToY(pos, top);
     const x = 88;
     const up = pos < 4;
     // Notes far above or below the staff get stems that reach the middle line.
     const stemLen = Math.max(35, Math.abs(pos - 4) * N.HALF);
     const n = N.note(x, y, { dur: 'q', up: up, stemLen: stemLen });
-    return card(N.staff(3, 127, top) + N.clef('treble', 6, top) + N.ledgers(x, pos, top) +
-      N.accidental(acc, acc === '#' ? 66 : 69, y) + n.svg);
+    // A slightly taller frame than other cards, taller still for the very highest notes.
+    const vbTop = Math.min(NOTE_VB_TOP, Math.floor(y - clearance - 1));
+    return N.svg('0 ' + vbTop + ' 130 ' + (NOTE_VB_BOTTOM - vbTop),
+      N.staff(3, 127, top) + N.clef('treble', 6, top) + N.ledgers(x, pos, top) +
+      N.accidental(acc, acc === '#' ? 66 : acc === 'x' ? 70 : 69, y) + n.svg);
   }
 
-  const sayName = (name) => pretty(name).replace(SHARP, ' sharp').replace(FLAT, ' flat');
+  const sayName = (name) => name[0] + (ACC_WORD[name.slice(1)] || '');
 
   // Home position, high-2 pattern: G A B C · D E F# G · A B C# D · E F# G# A B
   const HOME_SEMIS = { G: [0, 2, 4, 5], D: [0, 2, 4, 5], A: [0, 2, 4, 5], E: [0, 2, 4, 5, 7] };
@@ -82,7 +91,7 @@
 
   const LETTERS = 'CDEFGAB';
   const LETTER_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-  const accValue = (name) => (name[1] === '#' ? 1 : name[1] === 'b' ? -1 : 0);
+  const accValue = (name) => ({ '#': 1, b: -1, x: 2 }[name.slice(1)] || 0);
   const toMidi = (name, octave) => (octave + 1) * 12 + LETTER_PC[name[0]] + accValue(name);
   // The octave number a spelling takes for a given pitch (so B#3 = C4, Cb4 = B3).
   const octaveFor = (name, midi) => Math.round((midi - LETTER_PC[name[0]] - accValue(name)) / 12) - 1;
@@ -95,8 +104,30 @@
     melodic: { name: 'melodic minor', steps: [2, 1, 2, 2, 2, 2, 1], down: [2, 1, 2, 2, 1, 2, 2] }
   };
   // Keys whose scales need no double sharps or flats; tonics start at or above the violin's open G.
-  const MAJOR_KEYS = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'F', 'Bb', 'Eb', 'Ab', 'Db'];
-  const MINOR_KEYS = ['A', 'E', 'B', 'F#', 'C#', 'D', 'G', 'C', 'F', 'Bb', 'Eb'];
+  // Around the circle of fifths: C / A minor, then the sharp keys, then the flat keys.
+  const KEY_PAIRS = [
+    { n: 0, major: 'C', minor: 'A' },
+    { n: 1, type: '#', major: 'G', minor: 'E' },
+    { n: 2, type: '#', major: 'D', minor: 'B' },
+    { n: 3, type: '#', major: 'A', minor: 'F#' },
+    { n: 4, type: '#', major: 'E', minor: 'C#' },
+    { n: 5, type: '#', major: 'B', minor: 'G#' },
+    { n: 6, type: '#', major: 'F#', minor: 'D#' },
+    { n: 1, type: 'b', major: 'F', minor: 'D' },
+    { n: 2, type: 'b', major: 'Bb', minor: 'G' },
+    { n: 3, type: 'b', major: 'Eb', minor: 'C' },
+    { n: 4, type: 'b', major: 'Ab', minor: 'F' },
+    { n: 5, type: 'b', major: 'Db', minor: 'Bb' },
+    { n: 6, type: 'b', major: 'Gb', minor: 'Eb' }
+  ];
+  const MINOR_TYPES = ['natural', 'harmonic', 'melodic'];
+  // One list for the scale menu: each major key followed by its relative minors.
+  const SCALE_CHOICES = KEY_PAIRS.map((k) => ({
+    label: k.n === 0 ? 'No sharps or flats' : k.n + (k.type === '#' ? ' sharp' : ' flat') + (k.n > 1 ? 's' : ''),
+    options: [{ key: k.major, type: 'major' }].concat(MINOR_TYPES.map((t) => ({ key: k.minor, type: t })))
+      .map((o) => ({ value: o.key + ':' + o.type, key: o.key, type: o.type,
+        text: pretty(o.key) + ' ' + (o.type === 'major' ? 'major' : o.type + ' minor') }))
+  }));
 
   // Note names for the range menus: the naturals from open G up to E6.
   const RANGE_NOTES = [];
@@ -120,7 +151,7 @@
       const letter = LETTERS[(li + d) % 7];
       let diff = (((tonicPc + semi - LETTER_PC[letter]) % 12) + 12) % 12;
       if (diff > 6) diff -= 12;
-      out.push({ name: letter + (diff === 1 ? '#' : diff === -1 ? 'b' : ''), semi: semi, degree: d + 1 });
+      out.push({ name: letter + ({ 1: '#', '-1': 'b', 2: 'x' }[diff] || ''), semi: semi, degree: d + 1 });
       semi += steps[d];
     }
     return out;
@@ -548,7 +579,7 @@
 
   global.Content = {
     CATEGORIES: CATEGORIES, STRINGS: STRINGS, byId: byId, pick: pick,
-    MAJOR_KEYS: MAJOR_KEYS, MINOR_KEYS: MINOR_KEYS, RANGE_NOTES: RANGE_NOTES, PICK_ROWS: PICK_ROWS,
+    SCALE_CHOICES: SCALE_CHOICES, RANGE_NOTES: RANGE_NOTES, PICK_ROWS: PICK_ROWS,
     pretty: pretty, pitchPool: pitchPool, pitchSummary: pitchSummary
   };
 })(window);

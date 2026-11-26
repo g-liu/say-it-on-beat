@@ -157,7 +157,19 @@
       bar(y - 5) + bar(y + 1.6);
   }
 
+  // Double sharp: a small x with blocky ends, about one staff space wide.
+  function doubleSharp(x, y) {
+    const c = x + 4.5, h = 3.4, e = 2.6;
+    let s = strokePath('M' + r(c - h) + ',' + r(y - h) + ' L' + r(c + h) + ',' + r(y + h) +
+      ' M' + r(c + h) + ',' + r(y - h) + ' L' + r(c - h) + ',' + r(y + h), 1.5, 'butt');
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([dx, dy]) => {
+      s += rect(c + dx * (h + 0.4) - e / 2, y + dy * (h + 0.4) - e / 2, e, e);
+    });
+    return s;
+  }
+
   function accidental(acc, x, y) {
+    if (acc === 'x') return doubleSharp(x, y);
     if (acc === '#') return sharp(x, y);
     if (acc === 'b') return flat(x, y);
     if (acc === 'n') return natural(x, y);

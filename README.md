@@ -12,7 +12,7 @@ Pick one category or several. Picking several mixes them together in each round.
 - **Basic note values**: eighth, quarter, half and whole notes, and their rests
 - **Advanced note values**: dotted notes, triplets, sixteenths
 - **Diatonic note names**, chosen one of three ways:
-  - **Scale**: any major, natural minor, harmonic minor or melodic minor scale, over 1 or 2 octaves, starting from the lowest tonic at or above open G. Melodic minor includes both the raised (going up) and natural (coming down) 6th and 7th.
+  - **Scale**: one menu that goes around the circle of fifths: C major and A natural, harmonic and melodic minor, then 1 sharp through 6 sharps, then 1 flat through 6 flats. Each major key is followed by its relative minors. Scales are 1 or 2 octaves, starting from the lowest tonic at or above open G. Melodic minor includes both the raised (going up) and natural (coming down) 6th and 7th. G♯ and D♯ minor use double sharps.
   - **Chromatic**: every natural, sharp and flat in a range you pick. C♯ and D♭ are separate cards.
   - **Pick notes**: choose exact spellings (C♯ is not the same card as D♭; E♯, B♯, C♭ and F♭ are available too), in a range you pick.
 - **Key signatures**: up to 4 sharps or 4 flats
@@ -39,7 +39,7 @@ Pick one category or several. Picking several mixes them together in each round.
 
 You can switch to random every round instead. The current level shows under the round number.
 
-Options: starting tempo, number of rounds, speed up each round, show answers, and memory mode, where cards flip face down before the class says them. Settings are saved in the browser.
+Options: starting tempo (40–220 BPM), number of rounds, speed up each round by a percentage (1–25%, default 5%, up to 400 BPM), show answers, and memory mode, where cards flip face down before the class says them. Settings are saved in the browser.
 
 **Preview cards** shows every card in the selected categories with its answer.
 

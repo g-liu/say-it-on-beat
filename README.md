@@ -8,7 +8,7 @@ Open `index.html` in a browser. There's no install, build step or internet conne
 
 Pick one category or several. Picking several mixes them together in each round.
 
-- **Note names**: each string, open to 4th finger, in home position. You can limit it to certain strings (G, D, A, E).
+- **Note names**: home position on each string: G A B C, D E F♯ G, A B C♯ D, E F♯ G♯ A B. You can limit it to certain strings (G, D, A, E).
 - **Basic note values**: eighth, quarter, half and whole notes, and their rests
 - **Advanced note values**: dotted notes, triplets, sixteenths
 - **Note names with sharps** / **with flats**

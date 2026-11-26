@@ -48,6 +48,27 @@
       N.accidental(acc, acc === '#' ? 66 : 69, y) + n.svg);
   }
 
+  // Home position, high-2 pattern: G A B C · D E F# G · A B C# D · E F# G# A B
+  const HOME_SEMIS = { G: [0, 2, 4, 5], D: [0, 2, 4, 5], A: [0, 2, 4, 5], E: [0, 2, 4, 5, 7] };
+
+  function homePool(strings) {
+    const out = [];
+    STRINGS.filter((s) => strings.indexOf(s.id) >= 0).forEach((s) => {
+      HOME_SEMIS[s.id].forEach((semi) => {
+        const midi = s.open + semi;
+        const name = NATURAL_PC[midi % 12] || SHARP_PC[midi % 12];
+        const octave = Math.floor(midi / 12) - 1;
+        out.push({
+          id: 'note-home-' + midi,
+          svg: noteSvg(name, octave),
+          say: pretty(name).replace(SHARP, ' sharp'),
+          detail: pretty(name) + octave + ' · ' + s.name + ', ' + FINGER[semi] + (semi === 0 ? '' : ' finger')
+        });
+      });
+    });
+    return out;
+  }
+
   function notePool(strings, spelling) {
     const map = spelling === 'sharp' ? SHARP_PC : spelling === 'flat' ? FLAT_PC : NATURAL_PC;
     const byMidi = new Map();
@@ -367,8 +388,8 @@
    * ========================================================= */
 
   const CATEGORIES = [
-    { id: 'notes', name: 'Note names', desc: 'Each string, open to 4th finger, home position', kind: 'single', strings: true,
-      pool: (s) => notePool(s.strings, 'natural') },
+    { id: 'notes', name: 'Note names', desc: 'Home position: G A B C · D E F♯ G · A B C♯ D · E F♯ G♯ A B',
+      kind: 'single', strings: true, pool: (s) => homePool(s.strings) },
     { id: 'values', name: 'Basic note values', desc: 'Eighth, quarter, half, whole and their rests', kind: 'single',
       pool: () => BASIC_VALUES },
     { id: 'advvalues', name: 'Advanced note values', desc: 'Dotted notes, triplets, sixteenths', kind: 'single',

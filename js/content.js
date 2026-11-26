@@ -1509,10 +1509,31 @@
    * Categories and subcategories
    * ========================================================= */
 
-  // Chips are the cards themselves; the pool is the picked cards.
+  /*
+   * Symbol buttons: a small copy of the card's picture. Cards that are only words (pizz., D.C. al Fine)
+   * show the words in the same italic serif instead.
+   */
+  const CHIP_CROP = { x: 30, y: 16, w: 70, h: 80 };          // around a note in the middle of the card
+  const WIDE_CHIP_CROP = { x: 2, y: 14, w: 126, h: 90 };      // whole-width cards (repeats, tuplets)
+  function cardText(svgStr) {
+    const m = svgStr.match(/<g fill="[^"]*" stroke="none">(<text [^>]*>([^<]*)<\/text>)<\/g><\/svg>$/);
+    if (!m || /SayItOnBeat/.test(m[1])) return null;
+    return { text: m[2], italic: /font-style="italic"/.test(m[1]) };
+  }
+  function symbolChip(it, crop) {
+    if (it.chipHtml) return it.chipHtml;
+    const t = cardText(it.svg);
+    if (t) return '<span class="mark-text' + (t.italic ? '' : ' upright') + '">' + t.text + '</span>';
+    const c = it.chipCrop || crop || CHIP_CROP;
+    return it.svg.replace('class="notation"', 'class="chip-art card-art"')
+      .replace(/viewBox="[^"]*"/, 'viewBox="' + [c.x, c.y, c.w, c.h].join(' ') + '"');
+  }
+
+  // Chips are the cards themselves; the pool is the picked cards. def.symbols: show symbols on the buttons.
   function itemSubcat(def, items) {
     return Object.assign(def, {
-      chips: items.map((it) => ({ id: it.id, label: it.chip || it.say, html: it.chipHtml, group: it.group })),
+      chips: items.map((it) => ({ id: it.id, label: it.chip || it.say, group: it.group,
+        html: def.symbols ? symbolChip(it, def.chipCrop) : it.chipHtml, cls: def.symbols ? 'sym-chip' : '' })),
       pool: (sel) => items.filter((it) => sel.indexOf(it.id) >= 0)
     });
   }
@@ -1546,9 +1567,9 @@
         options: [{ setting: 'noteAnswer', label: 'Class says', choices: NOTE_ANSWERS }] }
     ] },
     { id: 'values', tab: 'cards', name: 'Note values', subcats: [
-      itemSubcat({ id: 'basicvalues', name: 'Basic note values', desc: 'Eighth, quarter, half and whole notes and their rests' }, BASIC_VALUES),
-      itemSubcat({ id: 'advvalues', name: 'Advanced note values', desc: 'Dotted notes, sixteenths, triplets' }, ADVANCED_VALUES),
-      itemSubcat({ id: 'tuplets', name: 'Tuplets & grace notes', desc: 'Duplets to septuplets, grace notes, appoggiaturas, acciaccaturas' }, TUPLET_ITEMS),
+      itemSubcat({ id: 'basicvalues', symbols: true, name: 'Basic note values', desc: 'Eighth, quarter, half and whole notes and their rests' }, BASIC_VALUES),
+      itemSubcat({ id: 'advvalues', symbols: true, name: 'Advanced note values', desc: 'Dotted notes, sixteenths, triplets' }, ADVANCED_VALUES),
+      itemSubcat({ id: 'tuplets', symbols: true, chipCrop: WIDE_CHIP_CROP, name: 'Tuplets & grace notes', desc: 'Duplets to septuplets, grace notes, appoggiaturas, acciaccaturas' }, TUPLET_ITEMS),
       itemSubcat({ id: 'timesigs', name: 'Naming time signatures', desc: 'Just a time signature: name it (“Three four”, “Common time”)' }, TIMESIG_ITEMS)
     ] },
     { id: 'reading', tab: 'cards', name: 'Note reading', subcats: [
@@ -1572,14 +1593,14 @@
         keyPicker: 'cadenceKeys', options: [{ setting: 'chordLabels', label: 'Answers use', choices: CHORD_LABELS }] }
     ] },
     { id: 'markings', tab: 'cards', name: 'Markings', subcats: [
-      itemSubcat({ id: 'dynamics', name: 'Dynamics', desc: 'pp to ff, sfz, fp, hairpins' }, DYNAMIC_ITEMS),
-      itemSubcat({ id: 'symbols', name: 'Bowing & articulation', desc: 'Bowings, slurs and ties, articulations, pizz. and arco, accidentals' }, SYMBOL_ITEMS),
+      itemSubcat({ id: 'dynamics', symbols: true, name: 'Dynamics', desc: 'pp to ff, sfz, fp, hairpins' }, DYNAMIC_ITEMS),
+      itemSubcat({ id: 'symbols', symbols: true, name: 'Bowing & articulation', desc: 'Bowings, slurs and ties, articulations, pizz. and arco, accidentals' }, SYMBOL_ITEMS),
       itemSubcat({ id: 'tempo', name: 'Tempo', desc: 'Grave to Prestississimo, and tempo changes', defaults: DEFAULT_TEMPOS }, TEMPO_ITEMS),
-      itemSubcat({ id: 'pauses', name: 'Pauses & fermatas', desc: 'Fermatas, lunga, caesura, breath mark, general pause' }, PAUSE_ITEMS),
-      itemSubcat({ id: 'repeats', name: 'Repeats', desc: 'Repeat signs, endings, measure repeat, D.C. and D.S., Fine, Coda, Segno' }, REPEAT_ITEMS),
-      itemSubcat({ id: 'ornaments', name: 'Ornaments', desc: 'Trills, mordents, turns and other ornaments', defaults: DEFAULT_ORNAMENTS }, ORNAMENT_ITEMS),
-      itemSubcat({ id: 'clefs', name: 'Clefs', desc: 'Treble, bass, alto, tenor' }, CLEF_ITEMS),
-      itemSubcat({ id: 'advsymbols', name: 'Advanced & contemporary', desc: 'More accents, Bartók pizz, harmonics, tremolo, glissando, extended techniques',
+      itemSubcat({ id: 'pauses', symbols: true, name: 'Pauses & fermatas', desc: 'Fermatas, lunga, caesura, breath mark, general pause' }, PAUSE_ITEMS),
+      itemSubcat({ id: 'repeats', symbols: true, chipCrop: WIDE_CHIP_CROP, name: 'Repeats', desc: 'Repeat signs, endings, measure repeat, D.C. and D.S., Fine, Coda, Segno' }, REPEAT_ITEMS),
+      itemSubcat({ id: 'ornaments', symbols: true, name: 'Ornaments', desc: 'Trills, mordents, turns and other ornaments', defaults: DEFAULT_ORNAMENTS }, ORNAMENT_ITEMS),
+      itemSubcat({ id: 'clefs', symbols: true, name: 'Clefs', desc: 'Treble, bass, alto, tenor' }, CLEF_ITEMS),
+      itemSubcat({ id: 'advsymbols', symbols: true, name: 'Advanced & contemporary', desc: 'More accents, Bartók pizz, harmonics, tremolo, glissando, extended techniques',
         defaults: DEFAULT_ADVANCED }, ADVANCED_SYMBOLS)
     ] },
     { id: 'rhythms', tab: 'rhythms', name: 'Rhythms', subcats: [

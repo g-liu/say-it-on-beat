@@ -52,6 +52,7 @@
     accidentalQuarterToneSharpStein: [0xE282, 0.72], accidentalNarrowReversedFlat: [0xE284, 0.64],
     dynamicSforzandoPiano: [0xE537, 3.256],
     tuplet3: [0xE883, 1.116], tuplet2: [0xE882, 1.188], tuplet5: [0xE885, 1.18], tuplet6: [0xE886, 1.116], tuplet7: [0xE887, 1.088],
+    ornamentTrill: [0xE566, 1.732], wiggleTrill: [0xEAA4, 0.88], ornamentMordent: [0xE56D, 1.892], ornamentShortTrill: [0xE56C, 1.892], ornamentTurn: [0xE567, 1.824], ornamentTurnInverted: [0xE568, 1.824], ornamentTurnSlash: [0xE569, 1.824], ornamentTremblement: [0xE56E, 2.616], ornamentSchleifer: [0xE587, 2.364], ornamentPrecompTrillWithMordent: [0xE5BD, 2.612], repeat1Bar: [0xE500, 1.924], breathMarkComma: [0xE4CE, 0.764], fermataVeryLongAbove: [0xE4C8, 3.368], noteheadDiamondHalf: [0xE0D9, 1.34],
     timeSigCommon: [0xE08A, 1.852], timeSigCutCommon: [0xE08B, 1.852],
     dynamicPiano: [0xE520, 1.268], dynamicMezzo: [0xE521, 1.496], dynamicForte: [0xE522, 1.336],
     dynamicSforzando: [0xE524, 0.832], dynamicZ: [0xE525, 0.956],
@@ -64,7 +65,8 @@
   const STEM_ANCHORS = {
     noteheadBlack: { up: [1.3, 0.16], down: [0, -0.168] },
     noteheadHalf: { up: [1.3, 0.16], down: [0, -0.168] },
-    noteheadXBlack: { up: [1.3, 0.424], down: [0, -0.424] }
+    noteheadXBlack: { up: [1.3, 0.424], down: [0, -0.424] },
+    noteheadDiamondHalf: { up: [1.34, 0], down: [0, 0] }
   };
 
   const r = (n) => Math.round(n * 100) / 100;
@@ -318,6 +320,12 @@
     const thinX = x + THICK + GAP + THIN / 2;
     return rect(x, top, THICK, 40) + line(thinX, top, thinX, top + 40, THIN) + repeatDots(thinX + THIN / 2 + DOT_GAP + DOT_R, top);
   }
+  // End-and-start repeat (:||:) with its thick line centred on x.
+  function doubleRepeat(x, top) {
+    const thinL = x - THICK / 2 - GAP - THIN / 2, thinR = x + THICK / 2 + GAP + THIN / 2;
+    return repeatDots(thinL - THIN / 2 - DOT_GAP - DOT_R, top) + line(thinL, top, thinL, top + 40, THIN) +
+      rect(x - THICK / 2, top, THICK, 40) + line(thinR, top, thinR, top + 40, THIN) + repeatDots(thinR + THIN / 2 + DOT_GAP + DOT_R, top);
+  }
   function finalBarline(x, top) {
     const thinX = x - THICK - GAP - THIN / 2;
     return line(thinX, top, thinX, top + 40, THIN) + rect(x - THICK, top, THICK, 40);
@@ -333,7 +341,7 @@
     fermata: fermata, coda: coda, tuplet3: tuplet3, tupletNum: tupletNum, timeSigSymbol: timeSigSymbol, tremolo: tremolo, above: above,
     timeSig: timeSig, timeSigNumber: timeSigNumber, timeSigNumberWidth: timeSigNumberWidth, dynamic: dynamic,
     curve: curve, hairpin: hairpin,
-    endRepeat: endRepeat, startRepeat: startRepeat, finalBarline: finalBarline,
+    endRepeat: endRepeat, startRepeat: startRepeat, finalBarline: finalBarline, doubleRepeat: doubleRepeat,
     strokePath: strokePath, fillPath: fillPath
   };
 })(window);

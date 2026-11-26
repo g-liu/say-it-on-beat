@@ -617,7 +617,6 @@
     { id: 'sym-staccato', svg: articulationCard('staccato'), say: 'Staccato', detail: 'short and separated' },
     { id: 'sym-accent', svg: articulationCard('accent'), say: 'Accent', detail: 'start the note strongly' },
     { id: 'sym-tenuto', svg: articulationCard('tenuto'), say: 'Tenuto', detail: 'full length, a little weight' },
-    { id: 'sym-fermata', svg: markAboveCard('fermataAbove'), say: 'Fermata', detail: 'hold longer than written' },
     { id: 'sym-pizz', svg: textCard('pizz.', 40), say: 'Pizzicato', detail: 'pluck the string' },
     { id: 'sym-arco', svg: textCard('arco', 40), say: 'Arco', detail: 'play with the bow again' },
     { id: 'sym-sharp', svg: card(N.accidental('#', 65 - N.accidentalWidth('#', 92) / 2, 62, 92)), say: 'Sharp', detail: 'raises a note a half step' },
@@ -629,22 +628,131 @@
    * Repeats and navigation
    * ========================================================= */
 
+  // One ending bracket over a measure; the 1st ending ends with a repeat sign.
+  function endingCard(num, repeat) {
+    return card(staff5() + N.line(10, 26, 118, 26, 1.3) + N.line(10.6, 26, 10.6, 36, 1.3) +
+      (repeat ? N.line(117.4, 26, 117.4, 36, 1.3) : '') + N.text(22, 37, num, 13, { italic: false }) +
+      N.note(64, A4, { dur: 'h', up: true }).svg + (repeat ? N.endRepeat(124, TOP) : N.barline(124, TOP, TOP + 40)));
+  }
+
   const REPEAT_ITEMS = [
     { id: 'sym-repeat', svg: card(staff5() + N.startRepeat(8, TOP) +
         N.note(48, A4, { dur: 'q', up: true }).svg + N.note(80, A4, { dur: 'q', up: true }).svg + N.endRepeat(124, TOP)),
       say: 'Repeat sign', detail: 'go back and play it again' },
-    { id: 'sym-endings', chip: 'Endings', svg: card(staff5() +
+    { id: 'sym-endings', chip: '1st & 2nd endings', svg: card(staff5() +
         N.line(6, 26, 60, 26, 1.3) + N.line(6.6, 26, 6.6, 36, 1.3) + N.text(16, 37, '1.', 13, { italic: false }) +
         N.note(34, A4, { dur: 'h', up: true }).svg + N.endRepeat(64, TOP) +
         N.line(70, 26, 124, 26, 1.3) + N.line(70.6, 26, 70.6, 36, 1.3) + N.text(80, 37, '2.', 13, { italic: false }) +
         N.note(98, A4, { dur: 'h', up: true }).svg + N.finalBarline(127, TOP)),
       say: 'First and second endings', detail: '1st time take ending 1, 2nd time skip to ending 2' },
+    { id: 'rep-double', chip: 'Double repeat', svg: card(staff5() + N.note(30, A4, { dur: 'q', up: true }).svg + N.doubleRepeat(65, TOP) +
+        N.note(100, A4, { dur: 'q', up: true }).svg), say: 'Double repeat sign', detail: 'repeat the part before, then the part after' },
+    { id: 'rep-measure', chip: 'Measure repeat', svg: card(staff5() + N.barline(4, TOP, TOP + 40) +
+        N.glyph('repeat1Bar', 65 - N.width('repeat1Bar') / 2, MID) + N.barline(126, TOP, TOP + 40)),
+      say: 'Measure repeat', detail: 'play the last measure again' },
+    { id: 'rep-ending1', chip: '1st ending', svg: endingCard('1.', true), say: '1st ending', detail: 'play it the first time, then repeat' },
+    { id: 'rep-ending2', chip: '2nd ending', svg: endingCard('2.', false), say: '2nd ending', detail: 'skip here the second time' },
+    { id: 'rep-ending3', chip: '3rd ending', svg: endingCard('3.', false), say: '3rd ending', detail: 'skip here the third time' },
     { id: 'sym-dc', svg: textCard('D.C. al Fine', 21), say: 'D.C. al Fine', detail: 'back to the beginning, stop at Fine' },
+    { id: 'rep-dccoda', svg: textCard('D.C. al Coda', 20), say: 'D.C. al Coda', detail: 'back to the beginning, then jump to the coda' },
+    { id: 'rep-dsfine', svg: textCard('D.S. al Fine', 21), say: 'D.S. al Fine', detail: 'back to the sign (segno), stop at Fine' },
+    { id: 'rep-dscoda', svg: textCard('D.S. al Coda', 20), say: 'D.S. al Coda', detail: 'back to the sign (segno), then jump to the coda' },
+    { id: 'rep-dc', svg: textCard('D.C.', 40), say: 'Da capo', detail: 'D.C.: back to the beginning' },
+    { id: 'rep-ds', svg: textCard('D.S.', 40), say: 'Dal segno', detail: 'D.S.: back to the sign' },
+    { id: 'rep-segno', svg: card(N.glyph('segno', 65 - N.width('segno', 64) / 2, 92, { size: 64 })), say: 'Segno', detail: '“the sign”: where D.S. goes back to' },
     { id: 'sym-fine', svg: textCard('Fine', 36), say: 'Fine', detail: '“fee-nay” · the end' },
     { id: 'sym-coda', svg: card(N.coda(65, 84, 64)), say: 'Coda', detail: 'jump to the ending section' },
     { id: 'sym-final', svg: card(staff5() + N.note(50, A4, { dur: 'h', up: true }).svg + N.finalBarline(110, TOP)),
       say: 'Final barline', detail: 'the end of the piece' }
   ];
+
+  /* =========================================================
+   * Tempo, pauses and ornaments
+   * ========================================================= */
+
+  // Words on a card, shrunk to fit. Tempo markings are bold upright; changes are italic.
+  function wordCard(str, italic) {
+    const size = Math.min(34, Math.floor(250 / Math.max(5, str.length)));
+    return card(N.text(65, 70, str, size, { italic: !!italic }));
+  }
+
+  // [id, marking, say, detail], slowest to fastest.
+  const TEMPO_TERMS = [
+    ['grave', 'Grave', 'Grave', 'very slow and solemn'],
+    ['largo', 'Largo', 'Largo', 'very slow and broad'],
+    ['lento', 'Lento', 'Lento', 'slow'],
+    ['larghetto', 'Larghetto', 'Larghetto', 'rather slow; a little faster than largo'],
+    ['adagio', 'Adagio', 'Adagio', 'slow, at ease'],
+    ['adagietto', 'Adagietto', 'Adagietto', 'a little faster than adagio'],
+    ['andante', 'Andante', 'Andante', 'at a walking pace'],
+    ['andantino', 'Andantino', 'Andantino', 'a little faster than andante'],
+    ['moderato', 'Moderato', 'Moderato', 'at a moderate speed'],
+    ['allegretto', 'Allegretto', 'Allegretto', 'moderately fast'],
+    ['allegro', 'Allegro', 'Allegro', 'fast and lively'],
+    ['vivace', 'Vivace', 'Vivace', 'lively and fast'],
+    ['vivacissimo', 'Vivacissimo', 'Vivacissimo', 'very lively and fast'],
+    ['presto', 'Presto', 'Presto', 'very fast'],
+    ['prestissimo', 'Prestissimo', 'Prestissimo', 'as fast as possible'],
+    ['prestississimo', 'Prestississimo', 'Prestississimo', 'even faster than prestissimo!']
+  ];
+  const DEFAULT_TEMPOS = ['andante', 'andantino', 'moderato', 'allegretto', 'allegro'];
+  const TEMPO_CHANGES = [
+    ['rit', 'rit.', 'Ritardando', 'gradually slower'],
+    ['rall', 'rall.', 'Rallentando', 'gradually slower'],
+    ['riten', 'riten.', 'Ritenuto', 'suddenly slower, held back'],
+    ['accel', 'accel.', 'Accelerando', 'gradually faster'],
+    ['stringendo', 'string.', 'Stringendo', 'pressing forward, faster'],
+    ['allarg', 'allarg.', 'Allargando', 'broadening: slower and fuller'],
+    ['meno', 'meno mosso', 'Meno mosso', 'less motion: a bit slower'],
+    ['piu', 'più mosso', 'Più mosso', 'more motion: a bit faster'],
+    ['atempo', 'a tempo', 'A tempo', 'back to the tempo'],
+    ['tempo1', 'Tempo I', 'Tempo primo', 'back to the first tempo'],
+    ['rubato', 'rubato', 'Rubato', 'flexible tempo, stretching and pushing']
+  ];
+  const TEMPO_ITEMS = [].concat(
+    TEMPO_TERMS.map(([id, mark, say, detail]) => ({ id: 'tempo-' + id, chip: mark, group: 'Tempo markings',
+      svg: wordCard(mark, false), say: say, detail: detail })),
+    TEMPO_CHANGES.map(([id, mark, say, detail]) => ({ id: 'tempo-' + id, chip: mark, group: 'Tempo changes',
+      svg: wordCard(mark, true), say: say, detail: detail })));
+
+  function twoNotesWith(mid) {
+    return card(staff5() + N.note(40, A4, { dur: 'q', up: true }).svg + mid + N.note(104, A4, { dur: 'q', up: true }).svg);
+  }
+  const PAUSE_ITEMS = [
+    { id: 'sym-fermata', svg: markAboveCard('fermataAbove'), say: 'Fermata', detail: 'hold longer than written (also called a pause)' },
+    { id: 'adv-fshort', svg: markAboveCard('fermataShortAbove'), say: 'Short fermata', detail: 'a brief pause' },
+    { id: 'adv-flong', svg: markAboveCard('fermataLongAbove'), say: 'Long fermata', detail: 'a long pause' },
+    { id: 'pause-fverylong', svg: markAboveCard('fermataVeryLongAbove'), say: 'Very long fermata', detail: 'a very long pause' },
+    { id: 'pause-lunga', chip: 'Lunga', svg: card(staff5() + N.note(65, B4, { dur: 'q', up: false }).svg + N.above('fermataAbove', 65, TOP - 4) +
+        N.text(80, TOP - 6, 'lunga', 13, { anchor: 'start' })), say: 'Fermata lunga', detail: 'a long hold' },
+    { id: 'adv-caesura', svg: twoNotesWith(N.glyph('caesura', 70, TOP + 10)), say: 'Caesura', detail: '“railroad tracks”: a complete stop' },
+    { id: 'pause-breath', svg: twoNotesWith(N.glyph('breathMarkComma', 68, TOP - 3)), say: 'Breath mark',
+      detail: 'a short break: lift the bow or take a breath' },
+    { id: 'pause-gp', chip: 'G.P.', svg: card(staff5() + N.rest('w', 65, MID) + N.text(65, TOP - 8, 'G.P.', 18, { italic: false })),
+      say: 'General pause', detail: 'everyone is silent for the whole bar' }
+  ];
+
+  // Ornaments over a stem-down B4.
+  function trillLineCard() {
+    let s = staff5() + N.note(30, B4, { dur: 'h', up: false }).svg + N.glyph('ornamentTrill', 23, TOP - 5);
+    for (let x = 44; x < 118; x += N.width('wiggleTrill')) s += N.glyph('wiggleTrill', x, TOP - 9);
+    return card(s);
+  }
+  const ORNAMENT_ITEMS = [
+    { id: 'orn-trill', svg: markAboveCard('ornamentTrill'), say: 'Trill', detail: 'alternate quickly with the note above' },
+    { id: 'orn-trillline', chip: 'Trill with wavy line', svg: trillLineCard(), say: 'Trill', detail: 'trill for as long as the wavy line lasts' },
+    { id: 'orn-mordent', svg: markAboveCard('ornamentMordent'), say: 'Mordent', detail: 'note, the note below, note: quickly' },
+    { id: 'orn-invmordent', chip: 'Inverted mordent', svg: markAboveCard('ornamentShortTrill'), say: 'Inverted mordent',
+      detail: 'note, the note above, note: quickly (upper mordent)' },
+    { id: 'orn-turn', svg: markAboveCard('ornamentTurn'), say: 'Turn', detail: 'above, note, below, note' },
+    { id: 'orn-invturn', chip: 'Inverted turn', svg: markAboveCard('ornamentTurnInverted'), say: 'Inverted turn', detail: 'below, note, above, note' },
+    { id: 'orn-slashturn', chip: 'Slashed turn', svg: markAboveCard('ornamentTurnSlash'), say: 'Inverted turn', detail: 'a turn with a slash: starts below' },
+    { id: 'orn-tremblement', svg: markAboveCard('ornamentTremblement'), say: 'Tremblement', detail: 'French Baroque trill, from the note above' },
+    { id: 'orn-trillmordent', chip: 'Trill with mordent', svg: markAboveCard('ornamentPrecompTrillWithMordent'), say: 'Trill with mordent',
+      detail: 'a trill that ends with a turn below' },
+    { id: 'orn-schleifer', chip: 'Schleifer (slide)', svg: markAboveCard('ornamentSchleifer'), say: 'Schleifer', detail: 'slide: two quick notes rising into the note' }
+  ];
+  const DEFAULT_ORNAMENTS = ['orn-trill', 'orn-mordent', 'orn-invmordent', 'orn-turn'];
 
   /* =========================================================
    * Advanced and contemporary symbols
@@ -667,6 +775,16 @@
     const n = N.note(65, B4, { dur: 'h', up: false });
     return card(staff5() + n.svg + N.tremolo(n.stemX, B4 + 24));
   }
+  // A hollow diamond notehead: where to touch the string lightly.
+  function naturalHarmonicCard() {
+    return card(staff5() + N.note(65, C5, { dur: 'h', up: false, head: 'noteheadDiamondHalf' }).svg);
+  }
+  // A stopped note (A4) with a diamond a perfect 4th above (D5) on the same stem.
+  function artificialHarmonicCard() {
+    const n = N.note(65, A4, { dur: 'q', up: true, stemLen: 35 + 3 * N.HALF });
+    const d = N.posToY(6, TOP);
+    return card(staff5() + n.svg + N.glyph('noteheadDiamondHalf', 65 - N.width('noteheadBlack') / 2, d));
+  }
   function nienteCard() {
     return card(N.hairpin(16, 100, 62, false) +
       '<circle cx="106" cy="62" r="5" fill="none" stroke="#111" stroke-width="1.8"/>');
@@ -684,16 +802,16 @@
     { id: 'adv-snap', svg: markAboveCard('pluckedSnapPizzicatoAbove'), say: 'Bartók pizzicato', detail: 'snap pizz: pull the string up so it slaps the fingerboard' },
     { id: 'adv-buzz', svg: markAboveCard('pluckedBuzzPizzicato'), say: 'Buzz pizzicato', detail: 'pluck so the string buzzes against the fingerboard' },
     { id: 'adv-harmonic', svg: markAboveCard('stringsHarmonic'), say: 'Harmonic', detail: 'touch the string lightly instead of pressing down' },
+    { id: 'adv-natharm', chip: 'Natural harmonic', svg: naturalHarmonicCard(), say: 'Natural harmonic',
+      detail: 'diamond note: lightly touch the open string at that spot' },
+    { id: 'adv-artharm', chip: 'Artificial harmonic', svg: artificialHarmonicCard(), say: 'Artificial harmonic',
+      detail: 'press the lower note, lightly touch a 4th above with the 4th finger' },
     { id: 'adv-tremolo', svg: tremoloCard(), say: 'Tremolo', detail: 'very fast, repeated bow strokes' },
     { id: 'adv-gliss', svg: glissCard(), say: 'Glissando', detail: 'slide from one note to the next' },
     { id: 'adv-xhead', chip: 'X notehead', svg: card(staff5() + N.note(65, B4, { dur: 'q', up: false, head: 'noteheadXBlack' }).svg),
       say: 'X notehead', detail: 'a percussive sound with no clear pitch' },
     { id: 'adv-qsharp', svg: quarterToneCard('qs', 62), say: 'Quarter-tone sharp', detail: 'raise the note by a quarter step' },
     { id: 'adv-qflat', svg: quarterToneCard('qf', 74), say: 'Quarter-tone flat', detail: 'lower the note by a quarter step' },
-    { id: 'adv-fshort', svg: markAboveCard('fermataShortAbove'), say: 'Short fermata', detail: 'a brief pause' },
-    { id: 'adv-flong', svg: markAboveCard('fermataLongAbove'), say: 'Long fermata', detail: 'a long pause' },
-    { id: 'adv-caesura', svg: card(staff5() + N.note(40, A4, { dur: 'q', up: true }).svg + N.glyph('caesura', 70, TOP + 10) +
-        N.note(104, A4, { dur: 'q', up: true }).svg), say: 'Caesura', detail: '“railroad tracks”: a complete stop' },
     { id: 'adv-sfp', chipHtml: dynChip('sfp'), svg: dynCard('sfp'), say: 'Sforzando piano', detail: 'sfp · a strong accent, then right away soft' },
     { id: 'adv-niente', chip: 'Al niente', svg: nienteCard(), say: 'Al niente', detail: 'fade away to nothing' },
     { id: 'adv-collegno', svg: textCard('col legno', 30), say: 'Col legno', detail: 'play with the wood of the bow' },
@@ -704,6 +822,11 @@
     { id: 'adv-senzasord', svg: textCard('senza sord.', 28), say: 'Senza sordino', detail: 'take the mute off' },
     { id: 'adv-senzavib', svg: textCard('senza vib.', 30), say: 'Senza vibrato', detail: 'no vibrato' }
   ];
+
+  // Picked when Advanced & contemporary is turned on; everything else stays available.
+  const DEFAULT_ADVANCED = ['adv-marcato', 'adv-staccatissimo', 'adv-accstacc', 'adv-tenacc', 'adv-snap', 'adv-harmonic',
+    'adv-natharm', 'adv-artharm', 'adv-tremolo', 'adv-gliss', 'adv-sfp', 'adv-collegno', 'adv-sultasto', 'adv-consord',
+    'adv-senzasord', 'adv-senzavib'];
 
   /* =========================================================
    * Rhythms: one measure per card, drawn on a one-line staff
@@ -1327,7 +1450,7 @@
   // Chips are the cards themselves; the pool is the picked cards.
   function itemSubcat(def, items) {
     return Object.assign(def, {
-      chips: items.map((it) => ({ id: it.id, label: it.chip || it.say, html: it.chipHtml })),
+      chips: items.map((it) => ({ id: it.id, label: it.chip || it.say, html: it.chipHtml, group: it.group })),
       pool: (sel) => items.filter((it) => sel.indexOf(it.id) >= 0)
     });
   }
@@ -1344,7 +1467,9 @@
   // Chip ids that moved to another subcategory, so saved picks follow them: { chipId: [from, to] }.
   const RELOCATED_CHIPS = {
     'sym-repeat': ['symbols', 'repeats'], 'sym-endings': ['symbols', 'repeats'], 'sym-dc': ['symbols', 'repeats'],
-    'sym-fine': ['symbols', 'repeats'], 'sym-coda': ['symbols', 'repeats'], 'sym-final': ['symbols', 'repeats']
+    'sym-fine': ['symbols', 'repeats'], 'sym-coda': ['symbols', 'repeats'], 'sym-final': ['symbols', 'repeats'],
+    'sym-fermata': ['symbols', 'pauses'], 'adv-fshort': ['advsymbols', 'pauses'], 'adv-flong': ['advsymbols', 'pauses'],
+    'adv-caesura': ['advsymbols', 'pauses']
   };
 
   const CATEGORIES = [
@@ -1385,9 +1510,13 @@
     { id: 'markings', tab: 'cards', name: 'Markings', subcats: [
       itemSubcat({ id: 'dynamics', name: 'Dynamics', desc: 'pp to ff, sfz, fp, hairpins' }, DYNAMIC_ITEMS),
       itemSubcat({ id: 'symbols', name: 'Bowing & articulation', desc: 'Bowings, slurs and ties, articulations, pizz. and arco, accidentals' }, SYMBOL_ITEMS),
-      itemSubcat({ id: 'repeats', name: 'Repeats', desc: 'Repeat signs, endings, D.C., Fine, coda' }, REPEAT_ITEMS),
+      itemSubcat({ id: 'tempo', name: 'Tempo', desc: 'Grave to Prestississimo, and tempo changes', defaults: DEFAULT_TEMPOS }, TEMPO_ITEMS),
+      itemSubcat({ id: 'pauses', name: 'Pauses & fermatas', desc: 'Fermatas, lunga, caesura, breath mark, general pause' }, PAUSE_ITEMS),
+      itemSubcat({ id: 'repeats', name: 'Repeats', desc: 'Repeat signs, endings, measure repeat, D.C. and D.S., Fine, Coda, Segno' }, REPEAT_ITEMS),
+      itemSubcat({ id: 'ornaments', name: 'Ornaments', desc: 'Trills, mordents, turns and other ornaments', defaults: DEFAULT_ORNAMENTS }, ORNAMENT_ITEMS),
       itemSubcat({ id: 'clefs', name: 'Clefs', desc: 'Treble, bass, alto, tenor' }, CLEF_ITEMS),
-      itemSubcat({ id: 'advsymbols', name: 'Advanced & contemporary', desc: 'More accents, Bartók pizz, harmonics, tremolo, glissando, extended techniques' }, ADVANCED_SYMBOLS)
+      itemSubcat({ id: 'advsymbols', name: 'Advanced & contemporary', desc: 'More accents, Bartók pizz, harmonics, tremolo, glissando, extended techniques',
+        defaults: DEFAULT_ADVANCED }, ADVANCED_SYMBOLS)
     ] },
     { id: 'rhythms', tab: 'rhythms', name: 'Rhythms', subcats: [
       { id: 'meters', name: 'Time signatures', rhythm: true, desc: 'One measure per card. With several, each round uses the next one.',

@@ -44,10 +44,13 @@ Only the open tab is played. Each tab has categories split into subcategories. T
   - **Cadences**: two chords in a key; the class names the cadence. Simple: perfect and imperfect authentic, half, plagal. Medium: deceptive, half cadences from ii6 and the cadential 6/4. Advanced: Phrygian half, Picardy third. Uncommon: minor plagal, deceptive to ♭VI.
 - **Markings**
   - **Dynamics**: pp to ff, sfz, fp, crescendo and decrescendo
-  - **Bowing & articulation**: bowings, slur and tie, articulations, fermata, pizz./arco, accidentals
-  - **Repeats**: repeat sign, endings, D.C. al Fine, Fine, coda, final barline
+  - **Bowing & articulation**: bowings, slur and tie, articulations, pizz./arco, accidentals
+  - **Tempo**: Grave, Largo, Lento, Larghetto, Adagio, Adagietto, Andante, Andantino, Moderato, Allegretto, Allegro, Vivace, Vivacissimo, Presto, Prestissimo, Prestississimo (Andante to Allegro picked by default), and tempo changes: rit., rall., riten., accel., string., allarg., meno mosso, più mosso, a tempo, Tempo I, rubato
+  - **Pauses & fermatas**: fermata, short, long and very long fermatas, fermata lunga, caesura, breath mark, G.P. (general pause)
+  - **Repeats**: repeat sign, double repeat, measure repeat, 1st, 2nd and 3rd endings, D.C. al Fine, D.C. al Coda, D.S. al Fine, D.S. al Coda, D.C., D.S., Fine, Coda, Segno, final barline
+  - **Ornaments**: trill, trill with wavy line, mordent, inverted mordent, turn, inverted turn, slashed turn, tremblement, trill with mordent, Schleifer (trill, mordent, inverted mordent and turn picked by default)
   - **Clefs**: treble, bass, alto, tenor
-  - **Advanced & contemporary**: marcato, staccatissimo, accent combinations, portato, Bartók and buzz pizzicato, harmonics, tremolo, glissando, X noteheads, quarter tones, short and long fermatas, caesura, sfp, al niente, col legno, sul ponticello, sul tasto, flautando, con/senza sordino, senza vibrato
+  - **Advanced & contemporary**: marcato, staccatissimo, accent combinations, portato, Bartók and buzz pizzicato, harmonic, natural harmonic (diamond notehead), artificial harmonic, tremolo, glissando, X noteheads, quarter tones, sfp, al niente, col legno, sul ponticello, sul tasto, flautando, con/senza sordino, senza vibrato. Turning it on picks marcato, staccatissimo, the accent combinations, Bartók pizz, the three harmonics, tremolo, glissando, sfp, col legno, sul tasto, con/senza sordino and senza vibrato.
 - **Rhythms** (its own tab): one measure per card.
   - **Time signatures**: Simple (2/4, 3/4, 4/4, common time C, cut time ¢, 3/8, 6/8) and Complex (2/2, 3/2, 5/4, 7/8, 9/8, 12/8). C and ¢ work exactly like 4/4 and 2/2. 2/4, 3/4 and 4/4 are picked when you turn it on. With several, each round uses the next one.
   - **Note values**: buttons with the note symbols: sixteenths, eighths, quarters, halves, whole notes, dotted eighth + sixteenth, dotted quarters, dotted halves, triplets (in simple meters), duplets (in 6/8, 9/8, 12/8) and rests. Values that don't fit the picked time signatures are greyed out. Defaults: eighths, quarters, halves, wholes, dotted halves (for 3/4) and rests.

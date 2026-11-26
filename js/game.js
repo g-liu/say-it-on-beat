@@ -46,9 +46,10 @@
     pitchMode: 'scale',          // 'scale' | 'chromatic' | 'pick'
     scaleType: 'major',          // 'major' | 'natural' | 'harmonic' | 'melodic'
     scaleKey: 'D',
-    scaleOctaves: 1,
+    rangePreset: 1,              // 1 | 2 | 3 octaves, or 'custom' (rangeLow to rangeHigh)
     rangeLow: 'G3',
     rangeHigh: 'B5',
+    noteAnswer: 'names',         // Note names cards: 'names' | 'fingers'
     pitchClasses: ['C', 'D', 'E', 'F', 'G', 'A', 'B']
   };
 
@@ -150,7 +151,13 @@
     }
     out.bpm = clamp(out.bpm, MIN_START_BPM, MAX_START_BPM, DEFAULTS.bpm);
     out.speedUpPct = Math.round(clamp(out.speedUpPct, MIN_SPEED_PCT, MAX_SPEED_PCT, DEFAULTS.speedUpPct));
-    out.scaleOctaves = out.scaleOctaves === 2 ? 2 : 1;
+    // The 1 / 2 octave buttons and the From / To menus became range presets and a custom range.
+    if (s.rangePreset === undefined) {
+      if ((s.pitchMode === 'chromatic' || s.pitchMode === 'pick') && s.rangeLow) out.rangePreset = 'custom';
+      else out.rangePreset = s.scaleOctaves === 2 ? 2 : 1;
+    }
+    if (Content.RANGE_PRESETS.indexOf(out.rangePreset) < 0) out.rangePreset = DEFAULTS.rangePreset;
+    delete out.scaleOctaves;
     if (Content.RANGE_NOTES.indexOf(out.rangeLow) < 0) out.rangeLow = DEFAULTS.rangeLow;
     if (Content.RANGE_NOTES.indexOf(out.rangeHigh) < 0) out.rangeHigh = DEFAULTS.rangeHigh;
     const allPcs = [].concat.apply([], Content.PICK_ROWS);
@@ -245,11 +252,15 @@
       '<optgroup label="' + g.label + '">' +
       g.options.map((o) => '<option value="' + o.value + '">' + o.text + '</option>').join('') + '</optgroup>'
     ).join('');
-    const rangeOpts = Content.RANGE_NOTES.map((n) => '<option value="' + n + '">' + n + '</option>').join('');
-    $('rangeLow').innerHTML = rangeOpts;
-    $('rangeHigh').innerHTML = rangeOpts;
     updateSetupState();
   }
+
+  // Slider positions are indexes into Content.RANGE_NOTES (the naturals from C3 to B7).
+  const noteIdx = (midi) => {
+    let i = 0;
+    Content.RANGE_NOTES.forEach((n, k) => { if (Content.rangeMidi(n) <= midi) i = k; });
+    return i;
+  };
 
   function updatePitchOptions() {
     const mode = settings.pitchMode;
@@ -258,17 +269,30 @@
     });
     $('scaleSub').classList.toggle('hidden', mode !== 'scale');
     $('pickSub').classList.toggle('hidden', mode !== 'pick');
-    $('rangeSub').classList.toggle('hidden', mode === 'scale');
 
     $('scalePick').value = settings.scaleKey + ':' + settings.scaleType;
-    document.querySelectorAll('#octaveChips .chip').forEach((b) => {
-      b.setAttribute('aria-pressed', String(Number(b.dataset.oct) === settings.scaleOctaves));
-    });
     document.querySelectorAll('#pcChips .chip').forEach((b) => {
       b.setAttribute('aria-pressed', String(settings.pitchClasses.indexOf(b.dataset.pc) >= 0));
     });
-    $('rangeLow').value = settings.rangeLow;
-    $('rangeHigh').value = settings.rangeHigh;
+
+    // Range: presets, and the two-ended slider (from the instrument's lowest note to B7).
+    document.querySelectorAll('#rangePresets button').forEach((b) => {
+      b.setAttribute('aria-pressed', String(String(settings.rangePreset) === b.dataset.preset));
+    });
+    const [lo, hi] = Content.rangeFor(settings);
+    const min = noteIdx(Content.INSTRUMENTS[settings.instrument].lowest), max = Content.RANGE_NOTES.length - 1;
+    const loI = noteIdx(lo), hiI = noteIdx(hi);
+    [$('rangeLowSlider'), $('rangeHighSlider')].forEach((el) => { el.min = min; el.max = max; });
+    $('rangeLowSlider').value = loI;
+    $('rangeHighSlider').value = hiI;
+    const pct = (i) => ((i - min) / (max - min)) * 100;
+    $('rangeFill').style.left = pct(loI) + '%';
+    $('rangeFill').style.right = (100 - pct(hiI)) + '%';
+    $('rangeLowOut').textContent = Content.midiLabel(lo);
+    $('rangeHighOut').textContent = Content.midiLabel(hi);
+    // Labels sit under their thumbs (the track is inset by the thumb's radius).
+    $('rangeLowOut').style.left = 'calc(10px + (100% - 20px) * ' + (pct(loI) / 100) + ')';
+    $('rangeHighOut').style.left = 'calc(10px + (100% - 20px) * ' + (pct(hiI) / 100) + ')';
 
     const pool = Content.pitchPool(settings);
     const first = pool[0].detail.split(' · ')[0];
@@ -445,12 +469,32 @@
       settings.scaleType = parts[1];
       changed();
     });
-    $('octaveChips').addEventListener('click', (e) => {
-      const b = e.target.closest('.chip');
+    $('rangePresets').addEventListener('click', (e) => {
+      const b = e.target.closest('button');
       if (!b) return;
-      settings.scaleOctaves = Number(b.dataset.oct);
+      if (b.dataset.preset === 'custom') {
+        // Start the custom range where the preset was.
+        const [lo, hi] = Content.rangeFor(settings);
+        settings.rangeLow = Content.RANGE_NOTES[noteIdx(lo)];
+        settings.rangeHigh = Content.RANGE_NOTES[noteIdx(hi)];
+        settings.rangePreset = 'custom';
+      } else settings.rangePreset = Number(b.dataset.preset);
       changed();
     });
+    // Moving either end makes the range custom; the ends can't cross.
+    const slide = (which) => () => {
+      const [lo, hi] = Content.rangeFor(settings);
+      let loI = noteIdx(lo);
+      let hiI = noteIdx(hi);
+      const v = Number($(which === 'low' ? 'rangeLowSlider' : 'rangeHighSlider').value);
+      if (which === 'low') { loI = Math.min(v, hiI); } else { hiI = Math.max(v, loI); }
+      settings.rangePreset = 'custom';
+      settings.rangeLow = Content.RANGE_NOTES[loI];
+      settings.rangeHigh = Content.RANGE_NOTES[hiI];
+      changed();
+    };
+    $('rangeLowSlider').addEventListener('input', slide('low'));
+    $('rangeHighSlider').addEventListener('input', slide('high'));
     $('pcChips').addEventListener('click', (e) => {
       const b = e.target.closest('.chip');
       if (!b) return;
@@ -459,19 +503,6 @@
       else settings.pitchClasses.push(b.dataset.pc);
       changed();
     });
-    // Keep From at or below To.
-    const order = (n) => Content.RANGE_NOTES.indexOf(n);
-    $('rangeLow').addEventListener('change', () => {
-      settings.rangeLow = $('rangeLow').value;
-      if (order(settings.rangeLow) > order(settings.rangeHigh)) settings.rangeHigh = settings.rangeLow;
-      changed();
-    });
-    $('rangeHigh').addEventListener('change', () => {
-      settings.rangeHigh = $('rangeHigh').value;
-      if (order(settings.rangeHigh) < order(settings.rangeLow)) settings.rangeLow = settings.rangeHigh;
-      changed();
-    });
-
     // These act on the open tab only.
     $('selectAll').addEventListener('click', () => {
       tabSubs().forEach((sc) => { settings.sel[sc.id] = allChips(sc.id).filter((id) => !chipState(sc, id)); });

@@ -178,13 +178,72 @@
     if (!item.draw) return item;
     item._cache = item._cache || {};
     if (!item._cache[clef]) item._cache[clef] = item.draw(clef);
-    return Object.assign({}, item, { svg: item._cache[clef] });
+    return Object.assign({}, item, { svg: item._cache[clef] }, item.variant ? item.variant(clef) : {});
   }
   // Semitones above the open string -> finger in first position.
   const FINGER = ['open', 'low 1st', '1st', 'low 2nd', 'high 2nd', '3rd', 'high 3rd', '4th'];
   // Home position, high-2 pattern: G A B C · D E F# G · A B C# D · E F# G# A B
   // The viola's C string uses the same high-2 pattern: C D E F.
   const HOME_SEMIS = { C: [0, 2, 4, 5], G: [0, 2, 4, 5], D: [0, 2, 4, 5], A: [0, 2, 4, 5], E: [0, 2, 4, 5, 7] };
+
+  /*
+   * Fingerings. First position: open, low 1, 1, low 2, high 2, 3, high 3, 4 by semitones above the
+   * open string, always on the highest string that has the note (so D4 is "Open D", not 4 on G).
+   * Above first position on the top string, the lowest odd position (3rd, 5th, ...) that reaches the
+   * note with fingers 1-4; in position p the 1st finger is p letter-steps above the open string.
+   */
+  const FINGER_SAY = ['Open', 'Low 1', '1', 'Low 2', 'High 2', '3', 'High 3', '4'];
+  const ordinal = (n) => n + (n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th');
+  // Answer choices for both Note names subcategories.
+  const NOTE_ANSWERS = [['names', 'Note names'], ['fingers', 'Fingerings']];
+
+  function fingering(name, octave, inst) {
+    const midi = toMidi(name, octave);
+    const strings = INSTRUMENTS[inst].strings.map((id) => STRINGS.find((x) => x.id === id));
+    let st = null;
+    strings.forEach((x) => { if (x.open <= midi) st = x; });
+    if (!st) return null;
+    const semis = midi - st.open;
+    const top = st === strings[strings.length - 1];
+    if (semis <= 7) {
+      const lower = strings[strings.indexOf(st) - 1];
+      return {
+        say: semis === 0 ? 'Open ' + st.id : FINGER_SAY[semis] + ' on ' + st.id,
+        detail: (semis === 0 ? 'open ' + st.name : FINGER[semis] + ' finger on the ' + st.name) +
+          (semis === 0 && lower ? ' (or 4th finger on the ' + lower.name + ')' : '')
+      };
+    }
+    if (!top) return null;
+    const openName = NATURAL_PC[st.open % 12];
+    const steps = N.diatonic(name[0], octave) - N.diatonic(openName, Math.floor(st.open / 12) - 1);
+    let pos = 3;
+    while (steps - pos + 1 > 4) pos += 2;
+    const finger = Math.max(1, steps - pos + 1);
+    return {
+      say: finger + ' in ' + ordinal(pos) + ' position on ' + st.id,
+      detail: FINGER[[0, 2, 4, 5, 7][finger]] + ' finger, ' + ordinal(pos) + ' position, ' + st.name
+    };
+  }
+  // Which instrument's fingering a card shows: in a mixed class, alto-clef cards are the viola's,
+  // treble-clef cards the violin's (unless the note is below the violin's G).
+  function fingerInst(s, clef, midi) {
+    const inst = (s && s.instrument) || 'violin';
+    if (inst !== 'both') return inst;
+    return clef === 'alto' || midi < INSTRUMENTS.violin.lowest ? 'viola' : 'violin';
+  }
+  // Adds per-clef fingering answers to a note card when the class says fingerings.
+  function withFingering(item, name, octave, s) {
+    if (!s || s.noteAnswer !== 'fingers') return item;
+    const midi = toMidi(name, octave);
+    const at = (clef) => fingering(name, octave, fingerInst(s, clef, midi));
+    const first = at(clefFor(s, 0)) || {};
+    item.say = first.say || item.say;
+    item.variant = (clef) => {
+      const f = at(clef);
+      return f ? { say: f.say, detail: label(name, octave) + ' · ' + f.detail } : {};
+    };
+    return item;
+  }
 
   // Home-position notes in one-line form for the subcategory description.
   function homeSummary(s) {
@@ -202,12 +261,12 @@
         const midi = s.open + semi;
         const name = NATURAL_PC[midi % 12] || SHARP_PC[midi % 12];
         const octave = Math.floor(midi / 12) - 1;
-        out.push({
+        out.push(withFingering({
           id: 'note-home-' + midi,
           draw: (clef) => noteSvg(name, octave, { clef: clef }),
           say: sayName(name),
           detail: pretty(name) + octave + ' · ' + s.name + ', ' + FINGER[semi] + (semi === 0 ? '' : ' finger')
-        });
+        }, name, octave, settings));
       });
     });
     return out;
@@ -232,9 +291,13 @@
         text: pretty(o.key) + ' ' + (o.type === 'major' ? 'major' : o.type + ' minor') }))
   }));
 
-  // Note names for the range menus: the naturals from the viola's open C up to E6.
+  // Note names for the range slider: the naturals from the viola's open C up to B7.
+  const RANGE_TOP = 107;   // B7
   const RANGE_NOTES = [];
-  for (let m = 48; m <= 88; m++) if (NATURAL_PC[m % 12]) RANGE_NOTES.push(NATURAL_PC[m % 12] + (Math.floor(m / 12) - 1));
+  for (let m = 48; m <= RANGE_TOP; m++) if (NATURAL_PC[m % 12]) RANGE_NOTES.push(NATURAL_PC[m % 12] + (Math.floor(m / 12) - 1));
+  // Range presets: a number of octaves (from the lowest tonic for a scale, from the lowest open
+  // string otherwise), or 'custom' (the slider's two ends).
+  const RANGE_PRESETS = [1, 2, 3, 'custom'];
   const rangeMidi = (s) => toMidi(s.replace(/\d+$/, ''), Number(s.match(/\d+$/)[0]));
 
   // Spellings for the "pick notes" chips: naturals, then sharps, then flats.
@@ -244,71 +307,75 @@
     ['Cb', 'Db', 'Eb', 'Fb', 'Gb', 'Ab', 'Bb']
   ];
 
-  function pitchItem(name, octave, extra) {
-    return {
+  function pitchItem(name, octave, extra, s) {
+    return withFingering({
       id: 'pitch-' + name + octave,
       draw: (clef) => noteSvg(name, octave, { clef: clef }),
       say: sayName(name),
       detail: label(name, octave) + (extra ? ' · ' + extra : '')
-    };
+    }, name, octave, s);
   }
 
-  function scaleItems(s) {
-    const type = SCALE_TYPES[s.scaleType] || SCALE_TYPES.major;
-    const tonic = s.scaleKey;
-    const start = lowestTonic(tonic, instrumentOf(s).lowest);
-    const octaves = s.scaleOctaves === 2 ? 2 : 1;
-    const forms = [{ degrees: spellScale(tonic, type.steps), note: type.down ? 'raised, going up' : '' }];
-    if (type.down) forms.push({ degrees: spellScale(tonic, type.down), note: 'natural, coming down' });
-
-    const seen = new Map();
-    forms.forEach((form) => {
-      for (let o = 0; o < octaves; o++) {
-        form.degrees.forEach((d) => {
-          const midi = start + o * 12 + d.semi;
-          const octave = octaveFor(d.name, midi);
-          const key = d.name + octave;
-          if (seen.has(key)) return;
-          const variant = form.note && (d.degree === 6 || d.degree === 7) ? ', ' + form.note : '';
-          seen.set(key, { midi: midi, item: pitchItem(d.name, octave, 'scale degree ' + d.degree + variant) });
-        });
-      }
-    });
-    const topOct = octaveFor(tonic, start + octaves * 12);
-    seen.set(tonic + topOct, { midi: start + octaves * 12, item: pitchItem(tonic, topOct, 'scale degree 1') });
-    return Array.from(seen.values()).sort((a, b) => a.midi - b.midi).map((v) => v.item);
-  }
-
-  function rangeBounds(s) {
+  // [lowest, highest] MIDI note for the diatonic cards.
+  function rangeFor(s) {
+    const lowest = instrumentOf(s).lowest;
+    if (s.rangePreset !== 'custom') {
+      const n = Number(s.rangePreset) || 1;
+      const lo = s.pitchMode === 'scale' || !s.pitchMode ? lowestTonic(s.scaleKey, lowest) : lowest;
+      return [lo, Math.min(RANGE_TOP, lo + 12 * n)];
+    }
     let lo = rangeMidi(RANGE_NOTES.indexOf(s.rangeLow) >= 0 ? s.rangeLow : 'G3');
     let hi = rangeMidi(RANGE_NOTES.indexOf(s.rangeHigh) >= 0 ? s.rangeHigh : 'B5');
     if (lo > hi) { const t = lo; lo = hi; hi = t; }
     // Nothing below the instrument's lowest open string.
-    const lowest = instrumentOf(s).lowest;
     return [Math.max(lo, lowest), Math.max(hi, lowest)];
   }
 
+  // Every note of the scale in the range (melodic minor: both the raised and the natural 6th and 7th).
+  function scaleItems(s) {
+    const type = SCALE_TYPES[s.scaleType] || SCALE_TYPES.major;
+    const tonic = s.scaleKey;
+    const [lo, hi] = rangeFor(s);
+    const forms = [{ degrees: spellScale(tonic, type.steps), note: type.down ? 'raised, going up' : '' }];
+    if (type.down) forms.push({ degrees: spellScale(tonic, type.down), note: 'natural, coming down' });
+    const seen = new Map();
+    for (let base = lowestTonic(tonic, 0); base <= hi; base += 12) {
+      forms.forEach((form) => {
+        form.degrees.forEach((d) => {
+          const midi = base + d.semi;
+          if (midi < lo || midi > hi) return;
+          const octave = octaveFor(d.name, midi);
+          const key = d.name + octave;
+          if (seen.has(key)) return;
+          const variant = form.note && (d.degree === 6 || d.degree === 7) ? ', ' + form.note : '';
+          seen.set(key, { midi: midi, item: pitchItem(d.name, octave, 'scale degree ' + d.degree + variant, s) });
+        });
+      });
+    }
+    return Array.from(seen.values()).sort((a, b) => a.midi - b.midi).map((v) => v.item);
+  }
+
   function chromaticItems(s) {
-    const [lo, hi] = rangeBounds(s);
+    const [lo, hi] = rangeFor(s);
     const out = [];
     for (let m = lo; m <= hi; m++) {
       const oct = Math.floor(m / 12) - 1;
       const nat = NATURAL_PC[m % 12];
-      if (nat) { out.push(pitchItem(nat, oct)); continue; }
+      if (nat) { out.push(pitchItem(nat, oct, '', s)); continue; }
       const sh = SHARP_PC[m % 12], fl = FLAT_PC[m % 12];
-      out.push(pitchItem(sh, oct, 'same pitch as ' + label(fl, oct)));
-      out.push(pitchItem(fl, oct, 'same pitch as ' + label(sh, oct)));
+      out.push(pitchItem(sh, oct, 'same pitch as ' + label(fl, oct), s));
+      out.push(pitchItem(fl, oct, 'same pitch as ' + label(sh, oct), s));
     }
     return out;
   }
 
   function pickedItems(s) {
-    const [lo, hi] = rangeBounds(s);
+    const [lo, hi] = rangeFor(s);
     const out = [];
     (s.pitchClasses || []).forEach((name) => {
-      for (let oct = 2; oct <= 7; oct++) {
+      for (let oct = 2; oct <= 8; oct++) {
         const m = toMidi(name, oct);
-        if (m >= lo && m <= hi) out.push({ midi: m, item: pitchItem(name, oct) });
+        if (m >= lo && m <= hi) out.push({ midi: m, item: pitchItem(name, oct, '', s) });
       }
     });
     return out.sort((a, b) => a.midi - b.midi).map((v) => v.item);
@@ -322,16 +389,21 @@
     return items.length ? items : chromaticItems(s);
   }
 
+  const midiLabel = (m) => { const n = NATURAL_PC[m % 12] || SHARP_PC[m % 12]; return label(n, Math.floor(m / 12) - 1); };
   // A one-line description of the current choice.
   function pitchSummary(s) {
-    if (s.pitchMode === 'chromatic') return 'Chromatic, ' + s.rangeLow + ' to ' + s.rangeHigh;
+    const [lo, hi] = rangeFor(s);
+    const range = s.rangePreset === 'custom' ? midiLabel(lo) + ' to ' + midiLabel(hi)
+      : s.rangePreset + (Number(s.rangePreset) > 1 ? ' octaves' : ' octave');
+    const says = s.noteAnswer === 'fingers' ? ' · say fingerings' : '';
+    if (s.pitchMode === 'chromatic') return 'Chromatic, ' + range + says;
     if (s.pitchMode === 'pick') {
       const names = (s.pitchClasses || []).map(pretty);
       const list = names.length > 6 ? names.length + ' notes' : names.join(' ');
-      return list + ', ' + s.rangeLow + ' to ' + s.rangeHigh;
+      return list + ', ' + range + says;
     }
     const type = SCALE_TYPES[s.scaleType] || SCALE_TYPES.major;
-    return pretty(s.scaleKey) + ' ' + type.name + ' scale, ' + (s.scaleOctaves === 2 ? '2 octaves' : '1 octave');
+    return pretty(s.scaleKey) + ' ' + type.name + ' scale, ' + range + says;
   }
 
   /* =========================================================
@@ -1281,9 +1353,10 @@
         chips: STRINGS.map((s) => ({ id: s.id, label: s.name })), pool: (sel, s) => homePool(sel, s),
         // Only the strings the instrument has.
         chipState: (id, s) => (instrumentOf(s).strings.indexOf(id) < 0 ? 'hidden' : ''),
-        describe: homeSummary },
+        describe: homeSummary, options: [{ setting: 'noteAnswer', label: 'Class says', choices: NOTE_ANSWERS }] },
       { id: 'diatonic', name: 'Diatonic note names', toggle: true, desc: 'A scale, chromatic in a range, or notes you pick',
-        chips: [{ id: 'on', label: 'On' }], pool: (sel, s) => pitchPool(s) }
+        chips: [{ id: 'on', label: 'On' }], pool: (sel, s) => pitchPool(s),
+        options: [{ setting: 'noteAnswer', label: 'Class says', choices: NOTE_ANSWERS }] }
     ] },
     { id: 'values', tab: 'cards', name: 'Note values', subcats: [
       itemSubcat({ id: 'basicvalues', name: 'Basic note values', desc: 'Eighth, quarter, half and whole notes and their rests' }, BASIC_VALUES),
@@ -1344,6 +1417,7 @@
     TABS: TABS, CATEGORIES: CATEGORIES, SUBCATS: SUBCATS, subById: subById, STRINGS: STRINGS, RELOCATED_CHIPS: RELOCATED_CHIPS,
     METERS: METERS, METER_IDS: METER_IDS, meterName: meterName, rhythmItem: rhythmItem, DEFAULT_RHYTHM_VALUES: DEFAULT_RHYTHM_VALUES,
     SCALE_CHOICES: SCALE_CHOICES, RANGE_NOTES: RANGE_NOTES, PICK_ROWS: PICK_ROWS,
-    pretty: pretty, pitchPool: pitchPool, pitchSummary: pitchSummary
+    pretty: pretty, pitchPool: pitchPool, pitchSummary: pitchSummary,
+    RANGE_PRESETS: RANGE_PRESETS, rangeFor: rangeFor, midiLabel: midiLabel, rangeMidi: rangeMidi, fingering: fingering
   };
 })(window);

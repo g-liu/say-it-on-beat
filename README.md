@@ -26,9 +26,11 @@ Only the open tab is played. Each tab has categories split into subcategories. T
 - **Note names**
   - **Home position**: G A B C, D E F♯ G, A B C♯ D, E F♯ G♯ A B, on the strings you pick
   - **Diatonic note names**, chosen one of three ways:
-    - **Scale**: one menu that goes around the circle of fifths: C major and A natural, harmonic and melodic minor, then 1 sharp through 6 sharps, then 1 flat through 6 flats. Each major key is followed by its relative minors. Scales are 1 or 2 octaves, starting from the lowest tonic at or above open G. Melodic minor includes both the raised (going up) and natural (coming down) 6th and 7th. G♯ and D♯ minor use double sharps.
-    - **Chromatic**: every natural, sharp and flat in a range you pick. C♯ and D♭ are separate cards.
-    - **Pick notes**: choose exact spellings (C♯ is not the same card as D♭; E♯, B♯, C♭ and F♭ are available too), in a range you pick.
+    - **Scale**: one menu that goes around the circle of fifths: C major and A natural, harmonic and melodic minor, then 1 sharp through 6 sharps, then 1 flat through 6 flats. Each major key is followed by its relative minors. Melodic minor includes both the raised (going up) and natural (coming down) 6th and 7th. G♯ and D♯ minor use double sharps.
+    - **Chromatic**: every natural, sharp and flat in the range. C♯ and D♭ are separate cards.
+    - **Pick notes**: choose exact spellings (C♯ is not the same card as D♭; E♯, B♯, C♭ and F♭ are available too), in the range.
+    - **Range**: 1, 2 or 3 octaves (from the lowest tonic at or above the lowest open string for a scale, from the lowest open string otherwise), or **Custom**: drag the two ends of the slider anywhere from the instrument's lowest note to B7.
+  - **Class says**: note names, or **fingerings** (for both subcategories). Fingerings are first position on the highest string that has the note ("Open D", "1 on D", "Low 2 on A", "High 3 on G"); higher notes on the top string use the lowest odd position that reaches them ("3 in 3rd position on E"). In a mixed class, treble-clef cards get violin fingerings and alto-clef cards viola fingerings.
 - **Note values**
   - **Basic**: eighth, quarter, half and whole notes and their rests
   - **Advanced**: dotted notes, sixteenths, triplets

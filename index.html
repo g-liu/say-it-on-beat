@@ -60,10 +60,6 @@
 
         <div class="sub" id="scaleSub">
           <select id="scalePick" aria-label="Scale"></select>
-          <div class="chips" id="octaveChips">
-            <button type="button" class="chip" data-oct="1">1 octave</button>
-            <button type="button" class="chip" data-oct="2">2 octaves</button>
-          </div>
         </div>
 
         <div class="sub" id="pickSub">
@@ -71,10 +67,18 @@
         </div>
 
         <div class="sub" id="rangeSub">
-          <div class="row2">
-            <span class="field">From <select id="rangeLow"></select></span>
-            <span class="field">To <select id="rangeHigh"></select></span>
+          <div class="seg small" id="rangePresets" role="group" aria-label="Range">
+            <button type="button" data-preset="1">1 octave</button>
+            <button type="button" data-preset="2">2 octaves</button>
+            <button type="button" data-preset="3">3 octaves</button>
+            <button type="button" data-preset="custom">Custom</button>
           </div>
+          <div class="dual" id="rangeDual">
+            <div class="dual-track"><div class="dual-fill" id="rangeFill"></div></div>
+            <input type="range" id="rangeLowSlider" aria-label="Lowest note" step="1">
+            <input type="range" id="rangeHighSlider" aria-label="Highest note" step="1">
+          </div>
+          <div class="dual-labels"><span id="rangeLowOut"></span><span id="rangeHighOut"></span></div>
         </div>
 
         <p class="sub-hint" id="pitchHint"></p>

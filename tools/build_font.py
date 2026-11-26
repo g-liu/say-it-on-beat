@@ -46,6 +46,7 @@ CODEPOINTS = {
     "dynamicSforzandoPiano": 0xE537,
     "tuplet3": 0xE883, "tuplet2": 0xE882, "tuplet5": 0xE885, "tuplet6": 0xE886, "tuplet7": 0xE887,
     "ornamentTrill": 0xE566, "wiggleTrill": 0xEAA4, "ornamentMordent": 0xE56D, "ornamentShortTrill": 0xE56C, "ornamentTurn": 0xE567, "ornamentTurnInverted": 0xE568, "ornamentTurnSlash": 0xE569, "ornamentTremblement": 0xE56E, "ornamentSchleifer": 0xE587, "ornamentPrecompTrillWithMordent": 0xE5BD, "repeat1Bar": 0xE500, "breathMarkComma": 0xE4CE, "fermataVeryLongAbove": 0xE4C8, "noteheadDiamondHalf": 0xE0D9,
+    "graceNoteAcciaccaturaStemUp": 0xE560, "graceNoteAppoggiaturaStemUp": 0xE562,
     "timeSigCommon": 0xE08A, "timeSigCutCommon": 0xE08B,
     "dynamicPiano": 0xE520, "dynamicMezzo": 0xE521, "dynamicForte": 0xE522,
     "dynamicSforzando": 0xE524, "dynamicZ": 0xE525,

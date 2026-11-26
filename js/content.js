@@ -428,7 +428,7 @@
     const top = stems.length ? A4 - 35 : 0;
     s += N.beam(stems[0], stems[stems.length - 1], top, 0);
     (secondary || []).forEach(([a, b]) => { s += N.beam(stems[a], stems[b], top, 1); });
-    if (tupletLabel) s += N.tuplet3((stems[0] + stems[stems.length - 1]) / 2, top - 4);
+    if (tupletLabel) s += N.tupletNum(tupletLabel, (stems[0] + stems[stems.length - 1]) / 2, top - 4);
     return s;
   }
 
@@ -463,6 +463,46 @@
       say: 'Triplet', detail: '3 eighths in 1 beat · 1-trip-let' },
     { id: 'a-d8s', svg: card(staff5() + dottedEighthSixteenth()),
       say: 'Dotted eighth sixteenth', detail: '1 beat · long-short' }
+  ];
+
+  // n sixteenths (or eighths) beamed under one tuplet number, spread across the card.
+  function tupletCard(n, dur, label) {
+    const xs = [];
+    const gap = Math.min(22, 84 / (n - 1));
+    for (let i = 0; i < n; i++) xs.push(65 - (gap * (n - 1)) / 2 + i * gap);
+    return card(staff5() + beamed(xs, xs.map(() => dur), dur === '16' ? [[0, n - 1]] : null, label));
+  }
+  // Small grace notes (stem up, a size smaller) before a main note.
+  const GRACE_SIZE = 30;
+  function graceCard(kind) {
+    const main = N.note(88, A4, { dur: 'q', up: true }).svg;
+    if (kind === 'acciaccatura' || kind === 'appoggiatura') {
+      const g = kind === 'acciaccatura' ? 'graceNoteAcciaccaturaStemUp' : 'graceNoteAppoggiaturaStemUp';
+      const gy = N.posToY(4, TOP);   // B4, a step above the main note
+      // Leland's grace-note glyphs are already cue-sized.
+      return card(staff5() + N.glyph(g, 40, gy) + N.curve(46, gy + 7, 84, A4 + 7, true, 5) + main);
+    }
+    // Two beamed grace sixteenths (C5, B4) leading into A4.
+    const k = GRACE_SIZE / 40, head = N.width('noteheadBlack') * k;
+    let s = '';
+    const xs = [30, 46], ys = [N.posToY(5, TOP), N.posToY(4, TOP)];
+    xs.forEach((x, i) => {
+      s += N.glyph('noteheadBlack', x - head / 2, ys[i], { size: GRACE_SIZE });
+      s += N.line(x + head / 2 - 0.5, ys[i] - 1, x + head / 2 - 0.5, TOP - 6, 1);
+    });
+    s += N.rect(xs[0] + head / 2 - 1, TOP - 6, xs[1] - xs[0] + 1, 3) + N.rect(xs[0] + head / 2 - 1, TOP - 1, xs[1] - xs[0] + 1, 3);
+    return card(staff5() + s + N.curve(28, ys[0] + 8, 84, A4 + 7, true, 6) + main);
+  }
+
+  const TUPLET_ITEMS = [
+    { id: 'tup-duplet', svg: tupletCard(2, '8', 2), say: 'Duplet', detail: '2 eighths in the time of 3 (in 6/8, 9/8, 12/8)' },
+    { id: 'tup-triplet', svg: tupletCard(3, '8', 3), say: 'Triplet', detail: '3 in the time of 2' },
+    { id: 'tup-quintuplet', svg: tupletCard(5, '16', 5), say: 'Quintuplet', detail: '5 sixteenths in the time of 4' },
+    { id: 'tup-sextuplet', svg: tupletCard(6, '16', 6), say: 'Sextuplet', detail: '6 sixteenths in the time of 4' },
+    { id: 'tup-septuplet', svg: tupletCard(7, '16', 7), say: 'Septuplet', detail: '7 sixteenths in the time of 4' },
+    { id: 'grace-notes', chip: 'Grace notes', svg: graceCard('notes'), say: 'Grace notes', detail: 'small quick notes just before the beat; they don’t count in the rhythm' },
+    { id: 'grace-appoggiatura', svg: graceCard('appoggiatura'), say: 'Appoggiatura', detail: 'a “leaning” note: no slash; it takes time from the main note' },
+    { id: 'grace-acciaccatura', svg: graceCard('acciaccatura'), say: 'Acciaccatura', detail: 'a “crushed” note: slash through it; as quick as possible' }
   ];
 
   /* =========================================================
@@ -1136,6 +1176,28 @@
       (m.sym ? N.timeSigSymbol(m.sym, 0, 0) : N.timeSig(m.top, m.bottom, 0, 0)) + '</svg>';
   }
 
+  // Naming time signatures: just the time signature, big.
+  const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+  const METER_DETAIL = {
+    '2/4': '2 quarter-note beats in a measure', '3/4': '3 quarter-note beats in a measure',
+    '4/4': '4 quarter-note beats in a measure', 'C': '4 quarter-note beats: the same as 4/4', 'cut': '2 half-note beats: the same as 2/2',
+    '3/8': '3 eighth-note beats in a measure', '6/8': '2 dotted-quarter beats (6 eighths) in a measure',
+    '2/2': '2 half-note beats in a measure', '3/2': '3 half-note beats in a measure', '5/4': '5 quarter-note beats in a measure',
+    '7/8': '7 eighths in a measure, grouped 2 + 2 + 3', '9/8': '3 dotted-quarter beats (9 eighths) in a measure',
+    '12/8': '4 dotted-quarter beats (12 eighths) in a measure'
+  };
+  const cap = (w) => w[0].toUpperCase() + w.slice(1);
+  const TIMESIG_ITEMS = [].concat.apply([], Object.keys(METER_GROUPS).map((g) => METER_GROUPS[g].map((id) => {
+    const m = METERS[id];
+    return {
+      id: 'ts-' + id, chip: meterName(id), group: g, chipHtml: meterChip(id),
+      svg: card(m.sym ? N.glyph(m.sym === 'cut' ? 'timeSigCutCommon' : 'timeSigCommon', 65, MID, { size: 64, anchor: 'middle' })
+        : N.timeSigNumber(m.top, 65, MID - 16, 64) + N.timeSigNumber(m.bottom, 65, MID + 16, 64)),
+      say: m.sym ? m.name : cap(NUMBER_WORDS[m.top]) + ' ' + NUMBER_WORDS[m.bottom],
+      detail: METER_DETAIL[id]
+    };
+  })));
+
   // Small pictures of note values for the rhythm buttons (and the note value chips).
   function noteArt(body, x0, w) {
     return '<svg class="chip-art note-art" viewBox="' + x0 + ' -42 ' + w + ' 50" aria-hidden="true"><g>' + body + '</g></svg>';
@@ -1485,7 +1547,9 @@
     ] },
     { id: 'values', tab: 'cards', name: 'Note values', subcats: [
       itemSubcat({ id: 'basicvalues', name: 'Basic note values', desc: 'Eighth, quarter, half and whole notes and their rests' }, BASIC_VALUES),
-      itemSubcat({ id: 'advvalues', name: 'Advanced note values', desc: 'Dotted notes, sixteenths, triplets' }, ADVANCED_VALUES)
+      itemSubcat({ id: 'advvalues', name: 'Advanced note values', desc: 'Dotted notes, sixteenths, triplets' }, ADVANCED_VALUES),
+      itemSubcat({ id: 'tuplets', name: 'Tuplets & grace notes', desc: 'Duplets to septuplets, grace notes, appoggiaturas, acciaccaturas' }, TUPLET_ITEMS),
+      itemSubcat({ id: 'timesigs', name: 'Naming time signatures', desc: 'Just a time signature: name it (“Three four”, “Common time”)' }, TIMESIG_ITEMS)
     ] },
     { id: 'reading', tab: 'cards', name: 'Note reading', subcats: [
       itemSubcat({ id: 'keysigs', name: 'Key signatures', desc: 'Name the major key' }, KEY_ITEMS),

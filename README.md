@@ -76,7 +76,7 @@ Only the open tab is played. Each tab has categories split into subcategories. N
 
 You can switch to random every round instead. The current level shows under the round number.
 
-Options: starting tempo (40–220 BPM), number of rounds, speed up each round by a percentage (1–25%, default 5%, up to 400 BPM), show answers, and memory mode, where cards flip face down before the class says them. Settings are saved in the browser.
+Options: starting tempo (40–220 BPM), number of rounds, speed up each round by a percentage (1–25%, default 5%, up to 400 BPM; the groove eases up to the new tempo during the answers, so the next round starts right on it), show answers, and memory mode, where cards flip face down before the class says them. Settings are saved in the browser.
 
 **Preview cards** shows every card in the selected categories with its answer.
 

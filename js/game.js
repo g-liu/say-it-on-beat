@@ -751,11 +751,20 @@
     if (!isLastRound(roundIdx)) beats[beats.length - 1].fill = true;
     beats.forEach((b, i) => { b.barPos = i % m; b.len = lens[b.barPos]; b.sub = subs[b.barPos]; });
 
+    // Speeding up: the groove eases toward the next round's tempo during the answers
+    // (or the short break), one small step per beat, so the next round starts right on it.
+    const bpm = bpmFor(roundIdx);
+    const nextBpm = isLastRound(roundIdx) ? bpm : bpmFor(roundIdx + 1);
+    if (nextBpm !== bpm) {
+      const steps = tail + 1;
+      beats.slice(-tail).forEach((b, i) => { b.bpm = bpm + (nextBpm - bpm) * (i + 1) / steps; });
+    }
+
     const level = levelFor(roundIdx);
     return {
       roundIdx: roundIdx, group: group, rhythm: !!group.rhythm, meterId: meterId, base: base, meter: m,
       cardLen: group.rhythm ? lens.reduce((a, b) => a + b, 0) : 1,
-      level: level, beats: beats, bpm: bpmFor(roundIdx),
+      level: level, beats: beats, bpm: bpm,
       // Cards that show notes take the clef for their position (alternating in a mixed class).
       items: makeItems(cardPicker(group, meterId), level).map((it, i) => Content.resolve(it, Content.clefFor(settings, i)))
     };
@@ -783,7 +792,7 @@
       }
       const b = plan.beats[game.beatIdx];
       const t = game.nextTime;
-      const spb = 60 / plan.bpm;
+      const spb = 60 / (b.bpm || plan.bpm);
       const beatDur = spb * b.len;
       engine.playBeat({
         t: t, spb: beatDur, sub: b.sub, barPos: b.barPos, meter: plan.meter, bar: game.bar, phase: b.phase,
@@ -899,6 +908,7 @@
         if (b.phase === 'review') grid.classList.add('answers');
       }
       const last = isLastRound(plan.roundIdx);
+      if (b.bpm) $('bpmLabel').textContent = Math.round(b.bpm) + ' BPM';
       if (b.phase === 'review') setPhase('Answers', 'answers');
       else setPhase(last ? 'Done' : 'Next round…', '');
     }

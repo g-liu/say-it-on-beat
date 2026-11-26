@@ -89,14 +89,17 @@
   /* ---------------- intervals ---------------- */
 
   // [id, name, letter steps, semitones]. Unison to tenth.
+  // Button labels where the name reads better than the abbreviation, and other names for the answer.
+  const INTERVAL_CHIPS = { P1: 'Unison', A4: 'Tritone', P8: 'Octave' };
+  const INTERVAL_AKA = { P1: 'perfect unison', A4: 'augmented 4th', P8: 'perfect octave' };
   const INTERVALS = [
-    ['P1', 'Perfect unison', 0, 0], ['m2', 'Minor 2nd', 1, 1], ['M2', 'Major 2nd', 1, 2],
+    ['P1', 'Unison', 0, 0], ['m2', 'Minor 2nd', 1, 1], ['M2', 'Major 2nd', 1, 2],
     ['m3', 'Minor 3rd', 2, 3], ['M3', 'Major 3rd', 2, 4], ['P4', 'Perfect 4th', 3, 5],
-    ['A4', 'Augmented 4th', 3, 6], ['d5', 'Diminished 5th', 4, 6], ['P5', 'Perfect 5th', 4, 7],
+    ['A4', 'Tritone', 3, 6], ['d5', 'Diminished 5th', 4, 6], ['P5', 'Perfect 5th', 4, 7],
     ['m6', 'Minor 6th', 5, 8], ['M6', 'Major 6th', 5, 9], ['m7', 'Minor 7th', 6, 10],
-    ['M7', 'Major 7th', 6, 11], ['P8', 'Perfect octave', 7, 12], ['m9', 'Minor 9th', 8, 13],
+    ['M7', 'Major 7th', 6, 11], ['P8', 'Octave', 7, 12], ['m9', 'Minor 9th', 8, 13],
     ['M9', 'Major 9th', 8, 14], ['m10', 'Minor 10th', 9, 15], ['M10', 'Major 10th', 9, 16]
-  ].map((a) => ({ id: a[0], name: a[1], steps: a[2], semis: a[3] }));
+  ].map((a) => ({ id: a[0], name: a[1], steps: a[2], semis: a[3], chip: INTERVAL_CHIPS[a[0]] || a[0], aka: INTERVAL_AKA[a[0]] }));
   const intervalById = (id) => INTERVALS.find((i) => i.id === id);
 
   // Every pair of notes in the key (lower note's degree 1-7) that makes this interval.

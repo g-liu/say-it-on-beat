@@ -43,6 +43,7 @@ CODEPOINTS = {
     "pluckedSnapPizzicatoAbove": 0xE631, "pluckedBuzzPizzicato": 0xE632, "stringsHarmonic": 0xE614,
     "tremolo3": 0xE222,
     "accidentalQuarterToneSharpStein": 0xE282, "accidentalNarrowReversedFlat": 0xE284,
+    "accidentalThreeQuarterTonesSharpStein": 0xE283, "accidentalNarrowReversedFlatAndFlat": 0xE285,
     "dynamicSforzandoPiano": 0xE537,
     "tuplet3": 0xE883, "tuplet2": 0xE882, "tuplet5": 0xE885, "tuplet6": 0xE886, "tuplet7": 0xE887,
     "ornamentTrill": 0xE566, "wiggleTrill": 0xEAA4, "ornamentMordent": 0xE56D, "ornamentShortTrill": 0xE56C, "ornamentTurn": 0xE567, "ornamentTurnInverted": 0xE568, "ornamentTurnSlash": 0xE569, "ornamentTremblement": 0xE56E, "ornamentSchleifer": 0xE587, "ornamentPrecompTrillWithMordent": 0xE5BD, "repeat1Bar": 0xE500, "breathMarkComma": 0xE4CE, "fermataVeryLongAbove": 0xE4C8, "noteheadDiamondHalf": 0xE0D9,

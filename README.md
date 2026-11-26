@@ -31,17 +31,17 @@ Only the open tab is played. Each tab has categories split into subcategories. N
     - **Pick notes**: choose exact spellings (C♯ is not the same card as D♭; E♯, B♯, C♭ and F♭ are available too), in the range.
     - **Range**: 1, 2 or 3 octaves (from the lowest tonic at or above the lowest open string for a scale, from the lowest open string otherwise), or **Custom**: drag the two ends of the slider anywhere from the instrument's lowest note to B7.
   - **Class says**: note names, or **fingerings** (for both subcategories). Fingerings are first position on the highest string that has the note ("Open D", "1 on D", "Low 2 on A", "High 3 on G"); higher notes on the top string use the lowest odd position that reaches them ("3 in 3rd position on E"). In a mixed class, treble-clef cards get violin fingerings and alto-clef cards viola fingerings.
-- **Note values**
+- **Note values** (drawn as bare notes without a staff, except grace notes; whole and half rests get one line to hang from or sit on)
   - **Basic**: eighth, quarter, half and whole notes and their rests
   - **Advanced**: dotted notes, sixteenths, triplets
   - **Tuplets & grace notes**: duplet, triplet, quintuplet, sextuplet, septuplet, grace notes, appoggiatura, acciaccatura
-  - **Naming time signatures**: just a time signature; the class names it ("Three four", "Common time")
+  - **Naming time signatures**: just a time signature; the class names it ("Three four", "Common time"). Includes 5/8, 10/8 and 11/8, which are only named, not played as rhythms.
 - **Note reading**
   - **Key signatures**: name the major key, from C through 6 sharps and 6 flats
   - **Scale degrees**: a note in a key (with its key signature); the class names its scale degree, shown as a number with a circumflex, like 3̂. Pick the degrees (1–7) and the keys (any major or minor key, default C major; minor keys use natural minor). One key is recommended; several keys is difficult.
-  - **Intervals**: two notes from a key's scale, with its key signature, one after the other or together; the class names the interval ("Major 3rd"). Pick the intervals (unison to major 10th) and the keys.
+  - **Intervals**: two notes from a key's scale, with its key signature, one after the other or together; the class names the interval ("Major 3rd"). Pick the intervals (unison to major 10th; the perfect unison, augmented 4th and perfect octave are called Unison, Tritone and Octave) and the keys.
 - **Chords**: each subcategory has chips in four tiers (Simple, Medium, Advanced, Uncommon); Simple is picked when you turn it on.
-  - **Naming chords**: a chord in notation with no key signature; the class names it ("D minor", "G7"). Simple: major, minor, dominant 7th. Medium: diminished, 1st and 2nd inversions. Advanced: augmented, major/minor/half-diminished/diminished 7ths, add 2, add 4, 9ths, 11ths, sus. Uncommon: 13ths, minor-major 7th, 6th chords, 7♭9.
+  - **Naming chords**: a chord in notation with no key signature; the class names it ("D minor", "G7"). Simple: major, minor, dominant 7th. Medium: diminished, 1st and 2nd inversions. Advanced: augmented, major/minor/half-diminished/diminished 7ths, add 2, add 4, 9ths, 11ths, sus, Italian, French and German augmented 6ths (spelled from the bass in a key; the answer names the key it belongs to). Uncommon: 13ths, minor-major 7th, 6th chords, 7♭9.
   - **Spelling chords**: a Roman numeral in a key ("IV in C major"); the class spells it from the bass up ("F A C"). Simple: I, IV, V, V7 (i, iv, V, V7 in minor). Medium: ii, iii, vi, vii°, cadential 6/4. Advanced: 7th chords, augmented, Italian/French/German augmented sixths, add 2, add 4, V9, V11. Uncommon: Neapolitan, secondary dominants, borrowed chords, V13. Pick the keys (any major or minor key), and show Roman numerals or function names ("Subdominant").
   - **Cadences**: two chords in a key; the class names the cadence. Simple: perfect and imperfect authentic, half, plagal. Medium: deceptive, half cadences from ii6 and the cadential 6/4. Advanced: Phrygian half, Picardy third. Uncommon: minor plagal, deceptive to ♭VI.
 - **Markings**
@@ -52,11 +52,13 @@ Only the open tab is played. Each tab has categories split into subcategories. N
   - **Repeats**: repeat sign, double repeat, measure repeat, 1st, 2nd and 3rd endings, D.C. al Fine, D.C. al Coda, D.S. al Fine, D.S. al Coda, D.C., D.S., Fine, Coda, Segno, final barline
   - **Ornaments**: trill, trill with wavy line, mordent, inverted mordent, turn, inverted turn, slashed turn, tremblement, trill with mordent, Schleifer (trill, mordent, inverted mordent and turn picked by default)
   - **Clefs**: treble, bass, alto, tenor
-  - **Advanced & contemporary**: marcato, staccatissimo, accent combinations, portato, Bartók and buzz pizzicato, harmonic, natural harmonic (diamond notehead), artificial harmonic, tremolo, glissando, X noteheads, quarter tones, sfp, al niente, col legno, sul ponticello, sul tasto, flautando, con/senza sordino, senza vibrato. Turning it on picks marcato, staccatissimo, the accent combinations, Bartók pizz, the three harmonics, tremolo, glissando, sfp, col legno, sul tasto, con/senza sordino and senza vibrato.
+  - **Advanced & contemporary**: marcato, staccatissimo, accent combinations, portato, Bartók and buzz pizzicato, harmonic, natural harmonic (diamond notehead), artificial harmonic, tremolo, glissando, X noteheads, quarter-tone and three-quarter-tone sharps and flats, sfp, al niente, col legno, sul ponticello, sul tasto, flautando, con/senza sordino, senza vibrato. Turning it on picks marcato, staccatissimo, the accent combinations, Bartók pizz, the three harmonics, tremolo, glissando, sfp, col legno, sul tasto, con/senza sordino and senza vibrato.
 - **Rhythms** (its own tab): one measure per card.
   - **Time signatures**: Simple (2/4, 3/4, 4/4, common time C, cut time ¢, 3/8, 6/8) and Complex (2/2, 3/2, 5/4, 7/8, 9/8, 12/8). C and ¢ work exactly like 4/4 and 2/2. 2/4, 3/4 and 4/4 are picked when you turn it on. With several, each round uses the next one.
   - **Note values**: buttons with the note symbols: sixteenths, eighths, quarters, halves, whole notes, dotted eighth + sixteenth, dotted quarters, dotted halves, triplets (in simple meters), duplets (in 6/8, 9/8, 12/8) and rests. Values that don't fit the picked time signatures are greyed out. Defaults: eighths, quarters, halves, wholes, dotted halves (for 3/4) and rests.
   - Compound meters beat in dotted quarters, and 7/8 is grouped 2+2+3, with the music following the meter. Simple meters are counted "1 e & a" (and "1 trip let"); x/8 meters are counted by eighths. Turn on **Clap the rhythm** to have the computer clap each card during "Say it!", with its own **Clap volume** (10%–100%; 100% peaks at 0.99).
+
+Hold <kbd>Shift</kbd> and click a button to pick (or clear) every button from the last one you clicked up to it.
 
 ## Running a round
 

@@ -412,10 +412,24 @@
 
   const A4 = N.posToY(3, TOP);   // second space — stems up
 
-  function valueCard(dur, dots) {
-    return card(staff5() + N.note(62, A4, { dur: dur, up: true, dots: dots || 0 }).svg);
+  /*
+   * Note values are drawn bare, without a staff, a little larger and centered on the card.
+   * The notes are drawn at the A4 height (stems up), so their middle is at y = 50.
+   */
+  const BARE_SCALE = 1.35, BARE_WIDE_SCALE = 1.15;
+  const WIDE_VALUE_CROP = { x: 4, y: 16, w: 122, h: 86 };   // buttons for beamed groups
+  function bareCard(body, wide, cx, cy) {
+    const k = wide ? BARE_WIDE_SCALE : BARE_SCALE;
+    return card('<g transform="translate(65 62) scale(' + k + ') translate(' + -(cx || 65) + ' ' + -(cy || 50) + ')">' + body + '</g>');
   }
-  function restCard(kind) { return card(staff5() + N.rest(kind, 65, MID)); }
+  function valueCard(dur, dots) {
+    return bareCard(N.note(62, A4, { dur: dur, up: true, dots: dots || 0 }).svg, false, dots ? 70 : 67, dur === 'w' ? A4 : 50);
+  }
+  // Rests are bare too, except whole and half rests, which need a line to hang from or sit on.
+  function restCard(kind) {
+    const line = { w: TOP + 10, h: MID }[kind];
+    return bareCard((line ? N.line(48, line, 82, line, 1.3) : '') + N.rest(kind, 65, MID), false, 65, MID - 4);
+  }
 
   // Notes beamed together at the A4 height with stems up.
   function beamed(xs, durs, secondary, tupletLabel) {
@@ -445,7 +459,7 @@
     { id: 'v-h', svg: valueCard('h'), say: 'Half note', detail: '2 beats' },
     { id: 'v-q', svg: valueCard('q'), say: 'Quarter note', detail: '1 beat' },
     { id: 'v-8', svg: valueCard('8'), say: 'Eighth note', detail: '½ beat' },
-    { id: 'v-ee', svg: card(staff5() + beamed([44, 80], ['8', '8'])), say: 'Two eighth notes', detail: '1 beat together' },
+    { id: 'v-ee', svg: bareCard(beamed([44, 80], ['8', '8']), false, 66), say: 'Two eighth notes', detail: '1 beat together' },
     { id: 'r-w', svg: restCard('w'), say: 'Whole rest', detail: '4 beats of silence · hangs from the line' },
     { id: 'r-h', svg: restCard('h'), say: 'Half rest', detail: '2 beats of silence · sits on the line' },
     { id: 'r-q', svg: restCard('q'), say: 'Quarter rest', detail: '1 beat of silence' },
@@ -457,11 +471,11 @@
     { id: 'a-dq', svg: valueCard('q', 1), say: 'Dotted quarter note', detail: '1½ beats' },
     { id: 'a-d8', svg: valueCard('8', 1), say: 'Dotted eighth note', detail: '¾ beat' },
     { id: 'a-16', svg: valueCard('16'), say: 'Sixteenth note', detail: '¼ beat' },
-    { id: 'a-ssss', svg: card(staff5() + beamed([30, 52, 74, 96], ['16', '16', '16', '16'], [[0, 3]])),
+    { id: 'a-ssss', svg: bareCard(beamed([30, 52, 74, 96], ['16', '16', '16', '16'], [[0, 3]]), true, 68), chipCrop: WIDE_VALUE_CROP,
       say: 'Four sixteenths', detail: '1 beat · 1 e & a' },
-    { id: 'a-trip', svg: card(staff5() + beamed([36, 62, 88], ['8', '8', '8'], null, '3')),
+    { id: 'a-trip', svg: bareCard(beamed([36, 62, 88], ['8', '8', '8'], null, '3'), true, 67), chipCrop: WIDE_VALUE_CROP,
       say: 'Triplet', detail: '3 eighths in 1 beat · 1-trip-let' },
-    { id: 'a-d8s', svg: card(staff5() + dottedEighthSixteenth()),
+    { id: 'a-d8s', svg: bareCard(dottedEighthSixteenth(), true, 68), chipCrop: WIDE_VALUE_CROP,
       say: 'Dotted eighth sixteenth', detail: '1 beat · long-short' }
   ];
 
@@ -470,7 +484,7 @@
     const xs = [];
     const gap = Math.min(22, 84 / (n - 1));
     for (let i = 0; i < n; i++) xs.push(65 - (gap * (n - 1)) / 2 + i * gap);
-    return card(staff5() + beamed(xs, xs.map(() => dur), dur === '16' ? [[0, n - 1]] : null, label));
+    return bareCard(beamed(xs, xs.map(() => dur), dur === '16' ? [[0, n - 1]] : null, label), true, 68);
   }
   // Small grace notes (stem up, a size smaller) before a main note.
   const GRACE_SIZE = 30;
@@ -572,7 +586,7 @@
               return chordsSvg(together ? [[low, high]] : [[low], [high]], { clef: clef, sig: key.sig });
             },
             say: iv.name,
-            detail: pretty(p.low) + (iv.steps ? ' up to ' : ' and ') + pretty(p.high) + ' in ' + T.keyName(key)
+            detail: (iv.aka ? iv.aka + ' · ' : '') + pretty(p.low) + (iv.steps ? ' up to ' : ' and ') + pretty(p.high) + ' in ' + T.keyName(key)
           });
         });
       });
@@ -852,6 +866,8 @@
       say: 'X notehead', detail: 'a percussive sound with no clear pitch' },
     { id: 'adv-qsharp', svg: quarterToneCard('qs', 62), say: 'Quarter-tone sharp', detail: 'raise the note by a quarter step' },
     { id: 'adv-qflat', svg: quarterToneCard('qf', 74), say: 'Quarter-tone flat', detail: 'lower the note by a quarter step' },
+    { id: 'adv-tqsharp', chip: 'Three-quarter-tone sharp', svg: quarterToneCard('tqs', 62), say: 'Three-quarter-tone sharp', detail: 'raise the note by three quarter steps' },
+    { id: 'adv-tqflat', chip: 'Three-quarter-tone flat', svg: quarterToneCard('tqf', 74), say: 'Three-quarter-tone flat', detail: 'lower the note by three quarter steps' },
     { id: 'adv-sfp', chipHtml: dynChip('sfp'), svg: dynCard('sfp'), say: 'Sforzando piano', detail: 'sfp · a strong accent, then right away soft' },
     { id: 'adv-niente', chip: 'Al niente', svg: nienteCard(), say: 'Al niente', detail: 'fade away to nothing' },
     { id: 'adv-collegno', svg: textCard('col legno', 30), say: 'Col legno', detail: 'play with the wood of the bow' },
@@ -1171,7 +1187,7 @@
 
   // A time signature drawn with Leland, for the selection buttons.
   function meterChip(id) {
-    const m = METERS[id];
+    const m = METERS[id] || NAMING_METERS[id];
     return '<svg class="chip-art ts" viewBox="-20 -22 40 44" aria-hidden="true">' +
       (m.sym ? N.timeSigSymbol(m.sym, 0, 0) : N.timeSig(m.top, m.bottom, 0, 0)) + '</svg>';
   }
@@ -1184,13 +1200,25 @@
     '3/8': '3 eighth-note beats in a measure', '6/8': '2 dotted-quarter beats (6 eighths) in a measure',
     '2/2': '2 half-note beats in a measure', '3/2': '3 half-note beats in a measure', '5/4': '5 quarter-note beats in a measure',
     '7/8': '7 eighths in a measure, grouped 2 + 2 + 3', '9/8': '3 dotted-quarter beats (9 eighths) in a measure',
-    '12/8': '4 dotted-quarter beats (12 eighths) in a measure'
+    '12/8': '4 dotted-quarter beats (12 eighths) in a measure',
+    '5/8': '5 eighths in a measure, grouped 2 + 3 or 3 + 2',
+    '10/8': '10 eighths in a measure, grouped in 2s and 3s (often 3 + 3 + 2 + 2)',
+    '11/8': '11 eighths in a measure, grouped in 2s and 3s (often 3 + 3 + 3 + 2)'
   };
+  // Time signatures that are only named, not played as rhythms, and where their buttons go.
+  const NAMING_METERS = {
+    '5/8': { top: 5, bottom: 8, after: '5/4' }, '10/8': { top: 10, bottom: 8, after: '9/8' }, '11/8': { top: 11, bottom: 8, after: '10/8' }
+  };
+  const TIMESIG_GROUPS = { Simple: METER_GROUPS.Simple.slice(), Complex: METER_GROUPS.Complex.slice() };
+  Object.keys(NAMING_METERS).forEach((id) => {
+    const list = TIMESIG_GROUPS.Complex;
+    list.splice(list.indexOf(NAMING_METERS[id].after) + 1, 0, id);
+  });
   const cap = (w) => w[0].toUpperCase() + w.slice(1);
-  const TIMESIG_ITEMS = [].concat.apply([], Object.keys(METER_GROUPS).map((g) => METER_GROUPS[g].map((id) => {
-    const m = METERS[id];
+  const TIMESIG_ITEMS = [].concat.apply([], Object.keys(TIMESIG_GROUPS).map((g) => TIMESIG_GROUPS[g].map((id) => {
+    const m = METERS[id] || NAMING_METERS[id];
     return {
-      id: 'ts-' + id, chip: meterName(id), group: g, chipHtml: meterChip(id),
+      id: 'ts-' + id, chip: m.name || id, group: g, chipHtml: meterChip(id),
       svg: card(m.sym ? N.glyph(m.sym === 'cut' ? 'timeSigCutCommon' : 'timeSigCommon', 65, MID, { size: 64, anchor: 'middle' })
         : N.timeSigNumber(m.top, 65, MID - 16, 64) + N.timeSigNumber(m.bottom, 65, MID + 16, 64)),
       say: m.sym ? m.name : cap(NUMBER_WORDS[m.top]) + ' ' + NUMBER_WORDS[m.bottom],
@@ -1244,6 +1272,7 @@
     ['aug', 'Augmented', 2], ['maj7', 'Major 7th', 2], ['min7', 'Minor 7th', 2], ['hdim7', 'Half-diminished 7th', 2],
     ['dim7', 'Diminished 7th', 2], ['add2', 'add 2', 2], ['add4', 'add 4', 2], ['ninth', '9th chords', 2],
     ['eleventh', '11th chords', 2], ['sus', 'sus 2 & sus 4', 2],
+    ['it6', 'Italian +6', 2], ['fr6', 'French +6', 2], ['ger6', 'German +6', 2],
     ['thirteenth', '13th chords', 3], ['mmaj7', 'Minor-major 7th', 3], ['sixth', '6th chords', 3], ['domb9', '7♭9', 3]
   ];
   const NAMING_QUALITIES = { ninth: ['dom9', 'maj9', 'min9'], eleventh: ['dom11'], sus: ['sus2', 'sus4'],
@@ -1364,16 +1393,37 @@
     return stackUp(namesBassUp, octave);
   }
 
+  // Augmented sixths for naming: spelled from the bass in each major key (the same notes work in its minor).
+  const AUG6_NAMES = { it6: 'Italian 6th', fr6: 'French 6th', ger6: 'German 6th' };
+  function aug6NamingItems(kindId) {
+    const out = [];
+    T.KEYS.filter((k) => k.mode === 'major').forEach((key) => {
+      const ch = T.kindChords(kindId, key)[0];
+      if (!ch || ch.notes.some((n) => !n || n.length > 2)) return;   // no double sharps or flats
+      const dom = T.above(key.tonic, 4, 7);
+      out.push({
+        id: 'chord-name-' + kindId + '-' + key.tonic,
+        draw: (clef) => chordsSvg([placeChord(ch.notes, clef, 5)], { clef: clef, sig: null }),
+        say: AUG6_NAMES[kindId],
+        detail: T.rnText(ch.rn) + ' in ' + pretty(key.tonic) + ' major or minor · ' + T.prettyList(ch.notes) +
+          ' · resolves to V (' + pretty(dom) + ')'
+      });
+    });
+    return out;
+  }
+
   function namingPool(sel) {
     let qualities = [];
+    let aug6 = [];
     sel.forEach((id) => {
       if (id === 'inv1' || id === 'inv2') return;
+      if (AUG6_NAMES[id]) { aug6 = aug6.concat(aug6NamingItems(id)); return; }
       qualities = qualities.concat(NAMING_QUALITIES[id] || [id]);
     });
     const inversions = [0].concat(sel.indexOf('inv1') >= 0 ? [1] : [], sel.indexOf('inv2') >= 0 ? [2] : []);
     // Inversions on their own: major and minor triads.
-    if (!qualities.length) qualities = ['maj', 'min'];
-    const out = [];
+    if (!qualities.length && (!aug6.length || inversions.length > 1)) qualities = ['maj', 'min'];
+    const out = aug6;
     qualities.forEach((q) => {
       NAMING_ROOTS.forEach((root) => {
         const notes = T.chordNotes(root, q);
@@ -1577,8 +1627,8 @@
       { id: 'degrees', name: 'Scale degrees', desc: 'Name the scale degree of each note. One key is recommended; more than one is difficult!',
         chips: DEGREE_IDS.map((d) => ({ id: d, label: 'Scale degree ' + d, html: degreeMark(d), cls: 'deg-chip' })),
         pool: (sel, s) => degreePool(sel, s), keyPicker: 'degreeKeys' },
-      { id: 'intervals', name: 'Intervals', desc: 'Two notes of a key, unison to a 10th: name the interval (“Major 3rd”)',
-        chips: T.INTERVALS.map((iv) => ({ id: iv.id, label: iv.name, html: iv.id, cls: 'iv-chip' })),
+      { id: 'intervals', name: 'Intervals', desc: 'Two notes of a key, unison to a 10th: name the interval (“Major 3rd”).<span class="kbd-only"> <kbd>Shift</kbd>-click to pick a range.</span>',
+        chips: T.INTERVALS.map((iv) => ({ id: iv.id, label: iv.name, html: iv.chip, cls: 'iv-chip' })),
         pool: (sel, s) => intervalPool(sel, s), keyPicker: 'intervalKeys',
         options: [{ setting: 'intervalStyle', label: 'Notes', choices: INTERVAL_STYLES }] }
     ] },

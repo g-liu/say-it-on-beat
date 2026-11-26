@@ -381,6 +381,8 @@
     });
   }
 
+  let lastChip = null;   // the last chip clicked, the start of a Shift-click range
+
   function bindSetup() {
     const changed = () => { saveSettings(); updateSetupState(); };
 
@@ -434,15 +436,30 @@
       }
       const chip = e.target.closest('.ichip');
       if (!chip) return;
-      const list = picked(chip.dataset.sub).slice();
+      const sub = chip.dataset.sub;
+      const sc = Content.subById(sub);
+      let list = picked(sub).slice();
+      const order = allChips(sub);
       const i = list.indexOf(chip.dataset.id);
-      const fixed = Content.subById(chip.dataset.sub).fixed;
-      if (i >= 0) { if (!fixed || list.length > 1) list.splice(i, 1); }   // always-on subcategories keep one pick
+      const turnOn = i < 0;
+      // Shift-click: every chip between the last one clicked and this one follows this chip.
+      const anchor = lastChip && lastChip.sub === sub ? order.indexOf(lastChip.id) : -1;
+      if (e.shiftKey && anchor >= 0) {
+        const at = order.indexOf(chip.dataset.id);
+        const range = order.slice(Math.min(anchor, at), Math.max(anchor, at) + 1).filter((id) => !chipState(sc, id));
+        if (turnOn) range.forEach((id) => { if (list.indexOf(id) < 0) list.push(id); });
+        else list = list.filter((id) => range.indexOf(id) < 0);
+        if (sc.fixed && !list.length) list = [chip.dataset.id];   // always-on subcategories keep one pick
+      } else if (!turnOn) { if (!sc.fixed || list.length > 1) list.splice(i, 1); }
       else list.push(chip.dataset.id);
+      lastChip = { sub: sub, id: chip.dataset.id };
       // Keep picks in the order the chips are shown.
-      const order = allChips(chip.dataset.sub);
-      settings.sel[chip.dataset.sub] = list.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+      settings.sel[sub] = list.sort((a, b) => order.indexOf(a) - order.indexOf(b));
       changed();
+    });
+    // Shift-clicking would otherwise select the button labels' text.
+    $('categoryList').addEventListener('mousedown', (e) => {
+      if (e.shiftKey && e.target.closest('.ichip')) e.preventDefault();
     });
     // The checkbox turns a subcategory on (with the picks it had last time, or its defaults) or off.
     $('categoryList').addEventListener('change', (e) => {

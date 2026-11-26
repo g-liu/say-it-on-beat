@@ -458,6 +458,16 @@
     { id: 'sym-fermata', svg: markAboveCard('fermataAbove'), say: 'Fermata', detail: 'hold longer than written' },
     { id: 'sym-pizz', svg: textCard('pizz.', 40), say: 'Pizzicato', detail: 'pluck the string' },
     { id: 'sym-arco', svg: textCard('arco', 40), say: 'Arco', detail: 'play with the bow again' },
+    { id: 'sym-sharp', svg: card(N.accidental('#', 65 - N.accidentalWidth('#', 92) / 2, 62, 92)), say: 'Sharp', detail: 'raises a note a half step' },
+    { id: 'sym-flat', svg: card(N.accidental('b', 65 - N.accidentalWidth('b', 92) / 2, 74, 92)), say: 'Flat', detail: 'lowers a note a half step' },
+    { id: 'sym-natural', svg: card(N.accidental('n', 65 - N.accidentalWidth('n', 92) / 2, 62, 92)), say: 'Natural', detail: 'cancels a sharp or flat' }
+  ];
+
+  /* =========================================================
+   * Repeats and navigation
+   * ========================================================= */
+
+  const REPEAT_ITEMS = [
     { id: 'sym-repeat', svg: card(staff5() + N.startRepeat(8, TOP) +
         N.note(48, A4, { dur: 'q', up: true }).svg + N.note(80, A4, { dur: 'q', up: true }).svg + N.endRepeat(124, TOP)),
       say: 'Repeat sign', detail: 'go back and play it again' },
@@ -470,9 +480,6 @@
     { id: 'sym-dc', svg: textCard('D.C. al Fine', 21), say: 'D.C. al Fine', detail: 'back to the beginning, stop at Fine' },
     { id: 'sym-fine', svg: textCard('Fine', 36), say: 'Fine', detail: '“fee-nay” · the end' },
     { id: 'sym-coda', svg: card(N.coda(65, 84, 64)), say: 'Coda', detail: 'jump to the ending section' },
-    { id: 'sym-sharp', svg: card(N.accidental('#', 65 - N.accidentalWidth('#', 92) / 2, 62, 92)), say: 'Sharp', detail: 'raises a note a half step' },
-    { id: 'sym-flat', svg: card(N.accidental('b', 65 - N.accidentalWidth('b', 92) / 2, 74, 92)), say: 'Flat', detail: 'lowers a note a half step' },
-    { id: 'sym-natural', svg: card(N.accidental('n', 65 - N.accidentalWidth('n', 92) / 2, 62, 92)), say: 'Natural', detail: 'cancels a sharp or flat' },
     { id: 'sym-final', svg: card(staff5() + N.note(50, A4, { dur: 'h', up: true }).svg + N.finalBarline(110, TOP)),
       say: 'Final barline', detail: 'the end of the piece' }
   ];
@@ -811,40 +818,56 @@
     });
   }
 
+  /*
+   * The setup screen has two tabs. Rhythm cards last a whole measure, so rhythms are
+   * practiced on their own; everything else can be mixed together in one round.
+   */
+  const TABS = [
+    { id: 'cards', name: 'Notes, reading & markings', desc: 'Everything you turn on here is mixed together in each round.' },
+    { id: 'rhythms', name: 'Rhythms', desc: 'Rhythms are practiced on their own: each card is one full measure.' }
+  ];
+
+  // Chip ids that moved to another subcategory, so saved picks follow them: { chipId: [from, to] }.
+  const RELOCATED_CHIPS = {
+    'sym-repeat': ['symbols', 'repeats'], 'sym-endings': ['symbols', 'repeats'], 'sym-dc': ['symbols', 'repeats'],
+    'sym-fine': ['symbols', 'repeats'], 'sym-coda': ['symbols', 'repeats'], 'sym-final': ['symbols', 'repeats']
+  };
+
   const CATEGORIES = [
-    { id: 'notes', name: 'Note names', subcats: [
+    { id: 'notes', tab: 'cards', name: 'Note names', subcats: [
       { id: 'home', name: 'Home position', desc: 'G A B C · D E F♯ G · A B C♯ D · E F♯ G♯ A B, on the strings you pick',
         chips: STRINGS.map((s) => ({ id: s.id, label: s.name })), pool: (sel) => homePool(sel) },
       { id: 'diatonic', name: 'Diatonic note names', toggle: true, desc: 'A scale, chromatic in a range, or notes you pick',
         chips: [{ id: 'on', label: 'On' }], pool: (sel, s) => pitchPool(s) }
     ] },
-    { id: 'values', name: 'Note values', subcats: [
+    { id: 'values', tab: 'cards', name: 'Note values', subcats: [
       itemSubcat({ id: 'basicvalues', name: 'Basic note values', desc: 'Eighth, quarter, half and whole notes and their rests' }, BASIC_VALUES),
       itemSubcat({ id: 'advvalues', name: 'Advanced note values', desc: 'Dotted notes, sixteenths, triplets' }, ADVANCED_VALUES)
     ] },
-    { id: 'keys', name: 'Key signatures', subcats: [
+    { id: 'reading', tab: 'cards', name: 'Note reading', subcats: [
       itemSubcat({ id: 'keysigs', name: 'Key signatures', desc: 'Name the major key' }, KEY_ITEMS),
       { id: 'degrees', name: 'Scale degrees', desc: 'Name the scale degree of each note. One key is recommended; more than one is difficult!',
         chips: KEY_PAIRS.map((k) => ({ id: k.major, label: keyChipLabel(k) })), pool: (sel) => degreePool(sel) }
     ] },
-    { id: 'rhythms', name: 'Rhythms', subcats: [
-      { id: 'meters', name: 'Time signatures', rhythm: true, desc: 'One measure per card. With several, each rhythm round uses the next one.',
-        chips: METER_IDS.map((id) => ({ id: id, label: id, html: meterChip(id), cls: 'ts-chip' })) }
-    ] },
-    { id: 'symbols', name: 'Symbols', subcats: [
+    { id: 'markings', tab: 'cards', name: 'Markings', subcats: [
       itemSubcat({ id: 'dynamics', name: 'Dynamics', desc: 'pp to ff, sfz, fp, hairpins' }, DYNAMIC_ITEMS),
-      itemSubcat({ id: 'symbols', name: 'Bowing, articulation & repeats', desc: 'Bowings, slurs and ties, articulations, repeats, signs' }, SYMBOL_ITEMS),
+      itemSubcat({ id: 'symbols', name: 'Bowing & articulation', desc: 'Bowings, slurs and ties, articulations, pizz. and arco, accidentals' }, SYMBOL_ITEMS),
+      itemSubcat({ id: 'repeats', name: 'Repeats', desc: 'Repeat signs, endings, D.C., Fine, coda' }, REPEAT_ITEMS),
       itemSubcat({ id: 'clefs', name: 'Clefs', desc: 'Treble, bass, alto, tenor' }, CLEF_ITEMS),
       itemSubcat({ id: 'advsymbols', name: 'Advanced & contemporary', desc: 'More accents, Bartók pizz, harmonics, tremolo, glissando, extended techniques' }, ADVANCED_SYMBOLS)
+    ] },
+    { id: 'rhythms', tab: 'rhythms', name: 'Rhythms', subcats: [
+      { id: 'meters', name: 'Time signatures', rhythm: true, desc: 'One measure per card. With several, each round uses the next one.',
+        chips: METER_IDS.map((id) => ({ id: id, label: id, html: meterChip(id), cls: 'ts-chip' })) }
     ] }
   ];
 
   const SUBCATS = [];
-  CATEGORIES.forEach((c) => c.subcats.forEach((sc) => { sc.cat = c.id; SUBCATS.push(sc); }));
+  CATEGORIES.forEach((c) => c.subcats.forEach((sc) => { sc.cat = c.id; sc.tab = c.tab; SUBCATS.push(sc); }));
   const subById = (id) => SUBCATS.find((sc) => sc.id === id);
 
   global.Content = {
-    CATEGORIES: CATEGORIES, SUBCATS: SUBCATS, subById: subById, STRINGS: STRINGS,
+    TABS: TABS, CATEGORIES: CATEGORIES, SUBCATS: SUBCATS, subById: subById, STRINGS: STRINGS, RELOCATED_CHIPS: RELOCATED_CHIPS,
     METERS: METERS, METER_IDS: METER_IDS, rhythmItem: rhythmItem,
     SCALE_CHOICES: SCALE_CHOICES, RANGE_NOTES: RANGE_NOTES, PICK_ROWS: PICK_ROWS,
     pretty: pretty, pitchPool: pitchPool, pitchSummary: pitchSummary

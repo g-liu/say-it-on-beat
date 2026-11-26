@@ -6,7 +6,12 @@ Play it at **https://g-liu.github.io/say-it-on-beat/**, or open `index.html` in 
 
 ## Categories
 
-Five categories, each split into subcategories. In each subcategory you pick individual items with the chips, or tick its checkbox to select or clear the whole subcategory. Everything you turn on is mixed together in each round, except rhythms (see below).
+The setup screen has two tabs:
+
+- **Notes, reading & markings**: everything you turn on here is mixed together in each round.
+- **Rhythms**: rhythm cards last a whole measure, so rhythms are practiced on their own.
+
+Only the open tab is played. Each tab has categories split into subcategories. Tick a subcategory's checkbox to turn it on (it remembers what you picked last time, or starts with its defaults), pick individual items with the chips, or press **All** to pick every chip.
 
 - **Note names**
   - **Home position**: G A B C, D E F♯ G, A B C♯ D, E F♯ G♯ A B, on the strings you pick
@@ -17,15 +22,16 @@ Five categories, each split into subcategories. In each subcategory you pick ind
 - **Note values**
   - **Basic**: eighth, quarter, half and whole notes and their rests
   - **Advanced**: dotted notes, sixteenths, triplets
-- **Key signatures**
+- **Note reading**
   - **Key signatures**: name the major key, from C through 6 sharps and 6 flats
   - **Scale degrees**: a note in a key (with its key signature); the class names its scale degree, shown as a number with a circumflex, like 3̂. One key is recommended; several keys is difficult.
-- **Rhythms**: one measure per card, in the time signatures you pick (2/2, 3/2, 2/4, 3/4, 4/4, 5/4, 3/8, 6/8, 7/8, 9/8, 12/8), at a basic or advanced level. Compound meters beat in dotted quarters, and 7/8 is grouped 2+2+3, with the music following the meter. Simple meters are counted "1 e & a" (and "1 trip let"); x/8 meters are counted by eighths. Rhythm cards get their own rounds, because each card lasts a full measure; with several time signatures, each rhythm round uses the next one. Turn on **Clap the rhythm** to have the computer clap each card during "Say it!".
-- **Symbols**
+- **Markings**
   - **Dynamics**: pp to ff, sfz, fp, crescendo and decrescendo
-  - **Bowing, articulation & repeats**: bowings, slur and tie, articulations, fermata, pizz./arco, repeats, endings, D.C. al Fine, coda, accidentals
+  - **Bowing & articulation**: bowings, slur and tie, articulations, fermata, pizz./arco, accidentals
+  - **Repeats**: repeat sign, endings, D.C. al Fine, Fine, coda, final barline
   - **Clefs**: treble, bass, alto, tenor
   - **Advanced & contemporary**: marcato, staccatissimo, accent combinations, portato, Bartók and buzz pizzicato, harmonics, tremolo, glissando, X noteheads, quarter tones, short and long fermatas, caesura, sfp, al niente, col legno, sul ponticello, sul tasto, flautando, con/senza sordino, senza vibrato
+- **Rhythms** (its own tab): one measure per card, in the time signatures you pick (2/2, 3/2, 2/4, 3/4, 4/4, 5/4, 3/8, 6/8, 7/8, 9/8, 12/8), at a basic or advanced level. Compound meters beat in dotted quarters, and 7/8 is grouped 2+2+3, with the music following the meter. Simple meters are counted "1 e & a" (and "1 trip let"); x/8 meters are counted by eighths. With several time signatures, each round uses the next one. Turn on **Clap the rhythm** to have the computer clap each card during "Say it!".
 
 ## Running a round
 

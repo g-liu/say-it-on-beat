@@ -22,6 +22,8 @@
   const DEFAULTS = {
     // Picked chips for each subcategory (see Content.SUBCATS); a subcategory with none is off.
     sel: null,
+    lastSel: {},                 // picks remembered when a subcategory is switched off
+    tab: 'cards',                // 'cards' | 'rhythms' (see Content.TABS); only the open tab is played
     rhythmLevel: 'basic',
     clap: false,                 // clap the rhythm cards during "Say it!"
     bpm: 90,
@@ -45,6 +47,13 @@
   const SCALE_VALUES = [].concat.apply([], Content.SCALE_CHOICES.map((g) => g.options.map((o) => o.value)));
   const clamp = (v, lo, hi, dflt) => (isFinite(v) ? Math.min(hi, Math.max(lo, Number(v))) : dflt);
   const allChips = (subId) => Content.subById(subId).chips.map((c) => c.id);
+  // What a subcategory picks when it's switched on for the first time.
+  const defaultChips = (subId) => {
+    const sc = Content.subById(subId);
+    return (sc.defaults ? sc.defaults.slice() : allChips(subId));
+  };
+  // A chip can be hidden (e.g. the E string for viola) or disabled (e.g. whole notes in 3/4) by the other settings.
+  const chipState = (sc, id) => (sc.chipState ? sc.chipState(id, settings) : '') || '';
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
   /* ============================ settings ============================ */
@@ -73,12 +82,31 @@
     let s = {};
     try { s = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { s = {}; }
     const out = Object.assign({}, DEFAULTS, s);
-    const sel = s.sel && typeof s.sel === 'object' ? s.sel : migrateSelection(s);
+    const sel = s.sel && typeof s.sel === 'object' ? Object.assign({}, s.sel) : migrateSelection(s);
+    // Chips that moved to another subcategory take their saved picks with them.
+    Object.keys(Content.RELOCATED_CHIPS).forEach((id) => {
+      const [from, to] = Content.RELOCATED_CHIPS[id];
+      const list = sel[from] || [];
+      if (list.indexOf(id) < 0) return;
+      sel[from] = list.filter((x) => x !== id);
+      sel[to] = (sel[to] || []).concat([id]);
+    });
     out.sel = {};
+    out.lastSel = {};
+    const saved = s.lastSel && typeof s.lastSel === 'object' ? s.lastSel : {};
     Content.SUBCATS.forEach((sc) => {
       const valid = sc.chips.map((c) => c.id);
-      out.sel[sc.id] = (sel[sc.id] || []).filter((id) => valid.indexOf(id) >= 0);
+      const order = (a, b) => valid.indexOf(a) - valid.indexOf(b);
+      out.sel[sc.id] = (sel[sc.id] || []).filter((id) => valid.indexOf(id) >= 0).sort(order);
+      const last = (saved[sc.id] || []).filter((id) => valid.indexOf(id) >= 0);
+      if (last.length) out.lastSel[sc.id] = last;
     });
+    // Before the tabs, rhythms and the other cards took turns; open the tab that has something on.
+    if (Content.TABS.map((t) => t.id).indexOf(out.tab) < 0) out.tab = DEFAULTS.tab;
+    if (!s.tab) {
+      const onIn = (tab) => Content.SUBCATS.some((sc) => sc.tab === tab && out.sel[sc.id].length);
+      out.tab = onIn('cards') || !onIn('rhythms') ? 'cards' : 'rhythms';
+    }
     delete out.categories;
     delete out.strings;
     if (['scale', 'chromatic', 'pick'].indexOf(out.pitchMode) < 0) out.pitchMode = DEFAULTS.pitchMode;
@@ -102,7 +130,14 @@
   const settings = loadSettings();
 
   const picked = (subId) => settings.sel[subId] || [];
-  const activeSubs = () => Content.SUBCATS.filter((sc) => picked(sc.id).length > 0);
+  // Picks that the current settings allow (hidden or disabled chips don't count).
+  const usable = (subId) => {
+    const sc = Content.subById(subId);
+    return picked(subId).filter((id) => !chipState(sc, id));
+  };
+  const tabSubs = (tab) => Content.SUBCATS.filter((sc) => sc.tab === (tab || settings.tab));
+  // Only the open tab is played.
+  const activeSubs = () => tabSubs().filter((sc) => usable(sc.id).length > 0);
 
   /* ============================ setup screen ============================ */
 
@@ -113,20 +148,39 @@
       inner + '</button>';
   }
 
+  // Chips, with a heading wherever a new group starts (e.g. "Simple" and "Complex" time signatures).
+  function chipsHtml(sc) {
+    let group = null, out = '';
+    sc.chips.forEach((ch) => {
+      if (ch.group && ch.group !== group) {
+        group = ch.group;
+        out += '<span class="chip-group">' + esc(group) + '</span>';
+      }
+      out += chipHtml(sc, ch);
+    });
+    return '<div class="ichips' + (sc.chipsCls ? ' ' + sc.chipsCls : '') + '">' + out + '</div>';
+  }
+
+  function subcatHtml(sc) {
+    return '<div class="subcat" data-sub="' + sc.id + '">' +
+      '<div class="subhead"><label><input type="checkbox" class="selall" data-sub="' + sc.id + '">' +
+      '<span class="sub-name">' + sc.name + '</span></label>' +
+      (sc.toggle ? '' : '<button type="button" class="sub-all" data-sub="' + sc.id + '">All</button>') +
+      '<span class="sub-desc">' + sc.desc + '</span></div>' +
+      (sc.toggle ? '' : chipsHtml(sc)) +
+      '<div class="sub-extra" id="extra-' + sc.id + '"></div>' +
+      '</div>';
+  }
+
   function renderCategories() {
+    $('tabBar').innerHTML = Content.TABS.map((t) =>
+      '<button type="button" role="tab" class="tab" data-tab="' + t.id + '" id="tab-' + t.id + '">' +
+      '<span class="tab-name">' + t.name + '</span><span class="tab-count" id="tabcount-' + t.id + '"></span></button>'
+    ).join('');
     $('categoryList').innerHTML = Content.CATEGORIES.map((cat) =>
-      '<details class="catgroup" open data-cat="' + cat.id + '">' +
+      '<details class="catgroup" open data-cat="' + cat.id + '" data-tab="' + cat.tab + '">' +
       '<summary><span class="cat-name">' + cat.name + '</span><span class="cat-count" id="count-' + cat.id + '"></span></summary>' +
-      cat.subcats.map((sc) =>
-        '<div class="subcat" data-sub="' + sc.id + '">' +
-        '<label class="subhead"><input type="checkbox" class="selall" data-sub="' + sc.id + '">' +
-        '<span><span class="sub-name">' + sc.name + '</span>' +
-        (sc.toggle ? '' : ' <span class="sub-all">Select all</span>') +
-        '<span class="sub-desc">' + sc.desc + '</span></span></label>' +
-        (sc.toggle ? '' : '<div class="ichips' + (sc.rhythm ? ' meter-chips' : '') + '">' + sc.chips.map((ch) => chipHtml(sc, ch)).join('') + '</div>') +
-        '<div class="sub-extra" id="extra-' + sc.id + '"></div>' +
-        '</div>'
-      ).join('') + '</details>'
+      cat.subcats.map(subcatHtml).join('') + '</details>'
     ).join('');
     // The diatonic and rhythm settings live inside their subcategories.
     $('extra-diatonic').appendChild($('pitchOption'));
@@ -173,21 +227,36 @@
   }
 
   function updateSetupState() {
+    // Tabs: only the open tab's categories show.
+    Content.TABS.forEach((t) => {
+      const on = tabSubs(t.id).filter((sc) => usable(sc.id).length).length;
+      const btn = $('tab-' + t.id);
+      btn.setAttribute('aria-selected', String(t.id === settings.tab));
+      const count = $('tabcount-' + t.id);
+      count.textContent = on ? String(on) : '';
+      count.classList.toggle('on', on > 0);
+    });
+    $('tabDesc').textContent = Content.TABS.find((t) => t.id === settings.tab).desc;
+    document.querySelectorAll('.catgroup').forEach((el) => el.classList.toggle('hidden', el.dataset.tab !== settings.tab));
+
     Content.SUBCATS.forEach((sc) => {
-      const n = picked(sc.id).length, total = sc.chips.length;
+      const n = picked(sc.id).length;
       const box = document.querySelector('.selall[data-sub="' + sc.id + '"]');
-      if (box) {
-        box.checked = sc.toggle ? n > 0 : n === total;
-        box.indeterminate = !sc.toggle && n > 0 && n < total;
-      }
+      if (box) box.checked = n > 0;
       const el = document.querySelector('.subcat[data-sub="' + sc.id + '"]');
-      if (el) el.classList.toggle('on', n > 0);
+      if (el) el.classList.toggle('on', usable(sc.id).length > 0);
+      const all = document.querySelector('.sub-all[data-sub="' + sc.id + '"]');
+      if (all) all.disabled = sc.chips.every((c) => chipState(sc, c.id) || picked(sc.id).indexOf(c.id) >= 0);
     });
     document.querySelectorAll('.ichip').forEach((el) => {
+      const sc = Content.subById(el.dataset.sub);
+      const state = chipState(sc, el.dataset.id);
       el.setAttribute('aria-pressed', String(picked(el.dataset.sub).indexOf(el.dataset.id) >= 0));
+      el.classList.toggle('hidden', state === 'hidden');
+      el.disabled = state === 'disabled';
     });
     Content.CATEGORIES.forEach((cat) => {
-      const on = cat.subcats.filter((sc) => picked(sc.id).length).length;
+      const on = cat.subcats.filter((sc) => usable(sc.id).length).length;
       const el = $('count-' + cat.id);
       if (el) {
         el.textContent = on ? on + ' of ' + cat.subcats.length + ' on' : '';
@@ -195,25 +264,38 @@
       }
     });
     updatePitchOptions();
+    if (window.SetupExtras) window.SetupExtras.forEach((fn) => fn());
 
     const subs = activeSubs();
     $('startBtn').disabled = subs.length === 0;
-    const rhythm = subs.some((sc) => sc.rhythm);
-    const others = subs.filter((sc) => !sc.rhythm).length;
     let hint = '';
-    if (!subs.length) hint = 'Pick at least one thing to practice to start.';
-    else if (rhythm && others) hint = 'Rhythm cards are one measure each, so they get their own rounds, taking turns with the other cards.';
-    else if (rhythm) hint = 'Each rhythm card is one full measure: count it, clap it, or play it on an open string.';
-    else if (others === 1) hint = '1 subcategory on. Turn on more to mix them in the same round.';
-    else hint = others + ' subcategories on. Each round mixes them together.';
-    if (picked('degrees').length > 1) hint += ' Scale degrees in ' + picked('degrees').length + ' keys: difficult!';
+    if (settings.tab === 'rhythms') {
+      hint = subs.length ? 'Each rhythm card is one full measure: count it, clap it, or play it on an open string.'
+        : 'Pick at least one time signature to start.';
+    } else if (!subs.length) hint = 'Pick at least one thing to practice to start.';
+    else if (subs.length === 1) hint = '1 subcategory on. Turn on more to mix them in the same round.';
+    else hint = subs.length + ' subcategories on. Each round mixes them together.';
+    if (settings.tab === 'cards' && usable('degrees').length > 1) hint += ' Scale degrees in ' + usable('degrees').length + ' keys: difficult!';
     $('categoryHint').textContent = hint;
   }
 
   function bindSetup() {
     const changed = () => { saveSettings(); updateSetupState(); };
 
+    $('tabBar').addEventListener('click', (e) => {
+      const tab = e.target.closest('.tab');
+      if (!tab) return;
+      settings.tab = tab.dataset.tab;
+      changed();
+    });
     $('categoryList').addEventListener('click', (e) => {
+      const all = e.target.closest('.sub-all');
+      if (all) {
+        const sc = Content.subById(all.dataset.sub);
+        settings.sel[sc.id] = allChips(sc.id).filter((id) => !chipState(sc, id) || picked(sc.id).indexOf(id) >= 0);
+        changed();
+        return;
+      }
       const chip = e.target.closest('.ichip');
       if (!chip) return;
       const list = picked(chip.dataset.sub).slice();
@@ -224,11 +306,18 @@
       settings.sel[chip.dataset.sub] = list.sort((a, b) => order.indexOf(a) - order.indexOf(b));
       changed();
     });
-    // "Select all" turns a whole subcategory on or off.
+    // The checkbox turns a subcategory on (with the picks it had last time, or its defaults) or off.
     $('categoryList').addEventListener('change', (e) => {
       const box = e.target.closest('.selall');
       if (!box) return;
-      settings.sel[box.dataset.sub] = box.checked ? allChips(box.dataset.sub) : [];
+      const id = box.dataset.sub;
+      if (box.checked) {
+        const last = settings.lastSel[id];
+        settings.sel[id] = last && last.length ? last.slice() : defaultChips(id);
+      } else {
+        if (picked(id).length) settings.lastSel[id] = picked(id).slice();
+        settings.sel[id] = [];
+      }
       changed();
     });
 
@@ -271,12 +360,16 @@
       changed();
     });
 
+    // These act on the open tab only.
     $('selectAll').addEventListener('click', () => {
-      Content.SUBCATS.forEach((sc) => { settings.sel[sc.id] = allChips(sc.id); });
+      tabSubs().forEach((sc) => { settings.sel[sc.id] = allChips(sc.id).filter((id) => !chipState(sc, id)); });
       changed();
     });
     $('selectNone').addEventListener('click', () => {
-      Content.SUBCATS.forEach((sc) => { settings.sel[sc.id] = []; });
+      tabSubs().forEach((sc) => {
+        if (picked(sc.id).length) settings.lastSel[sc.id] = picked(sc.id).slice();
+        settings.sel[sc.id] = [];
+      });
       changed();
     });
 
@@ -330,13 +423,13 @@
   /* ============================ card preview ============================ */
 
   function openPreview() {
-    const subs = activeSubs().length ? activeSubs() : Content.SUBCATS;
+    const subs = activeSubs().length ? activeSubs() : tabSubs();
     let html = '';
     subs.forEach((sc) => {
       const cat = Content.CATEGORIES.find((c) => c.id === sc.cat);
       const title = cat.name + ' · ' + sc.name;
       if (sc.rhythm) {
-        const meters = picked(sc.id).length ? picked(sc.id) : Content.METER_IDS;
+        const meters = usable(sc.id).length ? usable(sc.id) : Content.METER_IDS;
         meters.forEach((m) => {
           const items = [];
           for (let i = 0; i < 4; i++) items.push(Content.rhythmItem(m, settings.rhythmLevel, Math.random));
@@ -345,7 +438,7 @@
         });
         return;
       }
-      const sel = picked(sc.id).length ? picked(sc.id) : allChips(sc.id);
+      const sel = usable(sc.id).length ? usable(sc.id) : allChips(sc.id).filter((id) => !chipState(sc, id));
       const items = sc.pool(sel, settings);
       html += '<h3>' + title + '</h3><div class="preview-grid">' +
         items.map((it) => '<div class="pcard">' + it.svg + '<b>' + it.say + '</b><span>' + it.detail + '</span></div>').join('') + '</div>';
@@ -376,14 +469,10 @@
     wake: null
   };
 
-  // Rhythm cards are a measure each, so they get rounds of their own.
+  // One kind of round per game: rhythms (a measure per card) or the mixed one-beat cards.
   function buildGroups() {
-    const subs = activeSubs();
-    const groups = [];
-    const singles = subs.filter((sc) => !sc.rhythm);
-    if (singles.length) groups.push({ subs: singles });
-    if (picked('meters').length) groups.push({ rhythm: true, meters: picked('meters') });
-    return groups;
+    if (settings.tab === 'rhythms') return [{ rhythm: true, meters: usable('meters') }];
+    return [{ subs: activeSubs() }];
   }
 
   /*
@@ -407,7 +496,7 @@
   function cardPicker(group, meterId) {
     if (group.rhythm) return () => Content.rhythmItem(meterId, settings.rhythmLevel, Math.random);
     // Build each subcategory's cards once per round, then pick a subcategory, then a card.
-    const pools = group.subs.map((sc) => sc.pool(picked(sc.id), settings)).filter((p) => p.length);
+    const pools = group.subs.map((sc) => sc.pool(usable(sc.id), settings)).filter((p) => p.length);
     return () => {
       const pool = pools[Math.floor(Math.random() * pools.length)];
       return pool[Math.floor(Math.random() * pool.length)];

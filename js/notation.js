@@ -1,26 +1,80 @@
 /*
- * notation.js — tiny hand-drawn SVG music notation.
+ * notation.js — music notation as SVG, using the Leland music font.
  *
- * Everything is drawn with plain SVG paths so the app works offline and
- * looks the same on every classroom computer (no music fonts needed).
+ * Symbols (clefs, noteheads, flags, rests, accidentals, dynamics, articulations)
+ * are characters from "SayItOnBeat Music", a trimmed copy of Leland built by
+ * tools/build_font.py into css/music-font.css. Staff lines, stems, beams, ledger
+ * lines, barlines and slurs are drawn as lines and shapes.
  *
- * Units: one staff space = 10. A five-line staff whose top line is at
- * `top` has lines at top, top+10, ... top+40.
+ * Units: one staff space = 10. A five-line staff whose top line is at `top` has
+ * lines at top, top+10, ... top+40. Leland follows SMuFL: the font size is four
+ * staff spaces (40), and every metric below is in staff spaces from
+ * vendor/leland/leland_metadata.json.
  */
 (function (global) {
   'use strict';
 
   const SP = 10;           // staff space
   const HALF = SP / 2;     // one diatonic step
+  const FONT_SIZE = 4 * SP;
   const INK = '#111';
+  const FAMILY = 'SayItOnBeat Music';
+
+  // Line thicknesses from Leland's engravingDefaults (staff spaces).
+  const ENGRAVING = {
+    staffLine: 0.11, stem: 0.1, legerLine: 0.16, legerExtension: 0.33,
+    beam: 0.5, beamSpacing: 0.25, thinBarline: 0.18, thickBarline: 0.55,
+    barlineSeparation: 0.37, repeatDotSeparation: 0.37
+  };
+
+  // SMuFL code point and advance width (staff spaces) of every symbol used.
+  // Keep in sync with CODEPOINTS in tools/build_font.py.
+  const GLYPHS = {
+    gClef: [0xE050, 2.56], cClef: [0xE05C, 2.508], fClef: [0xE062, 2.652],
+    noteheadWhole: [0xE0A2, 1.492], noteheadHalf: [0xE0A3, 1.3], noteheadBlack: [0xE0A4, 1.3],
+    augmentationDot: [0xE1E7, 0.4],
+    flag8thUp: [0xE240, 1.156], flag8thDown: [0xE241, 1.236], flag16thUp: [0xE242, 1.12], flag16thDown: [0xE243, 1.236],
+    accidentalFlat: [0xE260, 0.848], accidentalNatural: [0xE261, 0.684], accidentalSharp: [0xE262, 0.976],
+    accidentalDoubleSharp: [0xE263, 1.1],
+    restWhole: [0xE4E3, 1.3], restHalf: [0xE4E4, 1.3], restQuarter: [0xE4E5, 0.94], rest8th: [0xE4E6, 1.104],
+    articAccentAbove: [0xE4A0, 1.44], articStaccatoAbove: [0xE4A2, 0.312], articTenutoAbove: [0xE4A4, 1.264],
+    fermataAbove: [0xE4C0, 2.488],
+    segno: [0xE047, 2.616], coda: [0xE048, 2.98],
+    timeSig3: [0xE083, 1.516], timeSig4: [0xE084, 1.828],
+    tuplet3: [0xE883, 1.116],
+    dynamicPiano: [0xE520, 1.268], dynamicMezzo: [0xE521, 1.496], dynamicForte: [0xE522, 1.336],
+    dynamicSforzando: [0xE524, 0.832], dynamicZ: [0xE525, 0.956],
+    dynamicPP: [0xE52B, 2.564], dynamicMP: [0xE52C, 2.784], dynamicMF: [0xE52D, 2.832], dynamicFF: [0xE52F, 2.352],
+    dynamicFortePiano: [0xE534, 2.324], dynamicSforzato: [0xE539, 2.792],
+    stringsDownBow: [0xE610, 1.26], stringsUpBow: [0xE612, 1.048]
+  };
+
+  // Stem attachment points on the noteheads (staff spaces, y up).
+  const STEM_UP_SE = [1.3, 0.16];
+  const STEM_DOWN_NW = [0, -0.168];
 
   const r = (n) => Math.round(n * 100) / 100;
+  const width = (name, size) => GLYPHS[name][1] * SP * ((size || FONT_SIZE) / FONT_SIZE);
 
   function svg(viewBox, body, extraClass) {
     return '<svg class="notation' + (extraClass ? ' ' + extraClass : '') +
       '" viewBox="' + viewBox + '" xmlns="http://www.w3.org/2000/svg"' +
       ' preserveAspectRatio="xMidYMid meet" aria-hidden="true">' +
       '<g fill="' + INK + '" stroke="none">' + body + '</g></svg>';
+  }
+
+  /*
+   * One font symbol with its origin (left edge, baseline) at (x, y).
+   * opts: { size, anchor: 'start' | 'middle' }
+   */
+  function glyph(name, x, y, opts) {
+    opts = opts || {};
+    const size = opts.size || FONT_SIZE;
+    const chars = (Array.isArray(name) ? name : [name])
+      .map((n) => '&#x' + GLYPHS[n][0].toString(16).toUpperCase() + ';').join('');
+    return '<text x="' + r(x) + '" y="' + r(y) + '" font-family="' + FAMILY + '" font-size="' + r(size) + '"' +
+      ' font-style="normal" font-weight="normal"' +
+      (opts.anchor ? ' text-anchor="' + opts.anchor + '"' : '') + '>' + chars + '</text>';
   }
 
   /* ---------- pitch helpers ---------- */
@@ -57,6 +111,8 @@
   }
   function fillPath(d) { return '<path d="' + d + '"/>'; }
   function g(transform, body) { return '<g transform="' + transform + '">' + body + '</g>'; }
+
+  // Words such as "pizz." and "D.C. al Fine" are set in an ordinary serif font.
   function text(x, y, str, size, opts) {
     opts = opts || {};
     return '<text x="' + r(x) + '" y="' + r(y) + '" font-size="' + size + '"' +
@@ -64,14 +120,7 @@
       ' font-style="' + (opts.italic === false ? 'normal' : 'italic') + '"' +
       ' font-weight="' + (opts.weight || 'bold') + '"' +
       ' text-anchor="' + (opts.anchor || 'middle') + '"' +
-      (opts.spacing ? ' letter-spacing="' + opts.spacing + '"' : '') +
       '>' + str + '</text>';
-  }
-
-  // An ellipse as a path, so two of them can make a hollow note head.
-  function ellipsePath(rx, ry) {
-    return 'M' + (-rx) + ',0a' + rx + ',' + ry + ' 0 1,0 ' + (2 * rx) + ',0a' + rx + ',' + ry +
-      ' 0 1,0 ' + (-2 * rx) + ',0Z';
   }
 
   /* ---------- staff ---------- */
@@ -79,241 +128,180 @@
   function staff(x1, x2, top, lines) {
     let s = '';
     const n = lines || 5;
-    for (let i = 0; i < n; i++) s += line(x1, top + i * SP, x2, top + i * SP, 1.1);
+    for (let i = 0; i < n; i++) s += line(x1, top + i * SP, x2, top + i * SP, ENGRAVING.staffLine * SP);
     return s;
   }
 
   function singleLine(x1, x2, y) { return line(x1, y, x2, y, 1.3); }
 
-  function barline(x, top, bottom, w) { return line(x, top, x, bottom, w || 1.3); }
+  function barline(x, top, bottom, w) { return line(x, top, x, bottom, w || ENGRAVING.thinBarline * SP); }
 
-  // Ledger lines for a note at staff position `pos`.
+  // Ledger lines for a note centred at x at staff position `pos`.
   function ledgers(x, pos, top) {
     let s = '';
-    const w = 9.5;
-    for (let p = -2; p >= pos; p -= 2) s += line(x - w, posToY(p, top), x + w, posToY(p, top), 1.2);
-    for (let p = 10; p <= pos; p += 2) s += line(x - w, posToY(p, top), x + w, posToY(p, top), 1.2);
+    const w = width('noteheadBlack') / 2 + ENGRAVING.legerExtension * SP;
+    const t = ENGRAVING.legerLine * SP;
+    for (let p = -2; p >= pos; p -= 2) s += line(x - w, posToY(p, top), x + w, posToY(p, top), t);
+    for (let p = 10; p <= pos; p += 2) s += line(x - w, posToY(p, top), x + w, posToY(p, top), t);
     return s;
   }
 
-  /* ---------- clefs (drawn with the staff's top line at y = 0) ---------- */
+  /* ---------- clefs ---------- */
 
-  function trebleClef(x, top) {
-    const body =
-      strokePath('M14.6,31.2 C11.2,31.6 9.6,27.4 12.2,25.2 C15.2,22.8 20.6,24.8 20.8,30.2 ' +
-        'C21,36.4 15.4,40.6 10,39.6 C4,38.4 1.4,32.6 3,26.4 C4.6,19.8 10,15.2 14,10.4 ' +
-        'C18,5.4 19.8,-1.6 18.8,-8.4 C18.2,-13.2 16.6,-16.6 15.2,-16.8 ' +
-        'C12.6,-15 11.6,-8.4 12.6,0.4 L15.4,46 C15.8,52.6 11.4,55 8.4,51.4', 2.3) +
-      circle(8.9, 49.6, 3.3);
-    return g('translate(' + r(x) + ',' + r(top) + ')', body);
-  }
-
-  function bassClef(x, top) {
-    const body =
-      fillPath('M1.4,9 C1.6,0.8 11.4,-1.6 17.4,3.4 C23.2,8.4 22,19.4 14,26.6 ' +
-        'C9.8,30.4 5.6,32.6 0.8,34.4 C6.8,30.4 12,25.8 14.4,19.6 C17,12.6 15.4,3.6 9.2,3.2 ' +
-        'C5.4,3 3.6,5.6 3.6,8.2 Z') +
-      circle(4.4, 10, 3.8) + circle(25, 5, 1.8) + circle(25, 15, 1.8);
-    return g('translate(' + r(x) + ',' + r(top) + ')', body);
-  }
-
-  // C clef centred on the line `c` units below the top line (alto 20, tenor 10).
-  function cClef(x, top, c) {
-    const bump = strokePath('M7.4,0 L11,-5.2 C13.2,-8.4 19.4,-7.4 19.4,-13.4 ' +
-      'C19.4,-18.6 15.4,-20.4 12.4,-19.6 C10.2,-19 9.6,-17 10.6,-15.6', 2.2) + circle(12.6, -15.4, 2.7);
-    const body = rect(0, -20, 4.4, 40) + rect(6.4, -20, 1.4, 40) +
-      bump + g('scale(1,-1)', bump);
-    return g('translate(' + r(x) + ',' + r(top + c) + ')', body);
-  }
+  // Each clef's origin sits on the line it names: G (2nd line), F (4th), C (middle or 4th).
+  const CLEF_LINE = { treble: ['gClef', 30], bass: ['fClef', 10], alto: ['cClef', 20], tenor: ['cClef', 10] };
 
   function clef(type, x, top) {
-    if (type === 'treble') return trebleClef(x, top);
-    if (type === 'bass') return bassClef(x, top);
-    if (type === 'alto') return cClef(x, top, 20);
-    if (type === 'tenor') return cClef(x, top, 10);
-    return '';
+    const c = CLEF_LINE[type];
+    return c ? glyph(c[0], x, top + c[1]) : '';
   }
+  function clefWidth(type) { return width(CLEF_LINE[type][0]); }
 
-  /* ---------- accidentals (centred on y) ---------- */
+  /* ---------- accidentals (left edge at x, centred on the note's line or space) ---------- */
 
-  function sharp(x, y) {
-    const bar = (yy) => fillPath('M' + r(x - 1.2) + ',' + r(yy + 1.6) + ' L' + r(x + 9.2) + ',' + r(yy - 1.4) +
-      ' L' + r(x + 9.2) + ',' + r(yy + 1.2) + ' L' + r(x - 1.2) + ',' + r(yy + 4.2) + 'Z');
-    return line(x + 2, y - 12, x + 2, y + 14, 1.3) + line(x + 6.2, y - 14, x + 6.2, y + 12, 1.3) +
-      bar(y - 5.4) + bar(y + 2.4);
+  const ACCIDENTAL = { '#': 'accidentalSharp', b: 'accidentalFlat', n: 'accidentalNatural', x: 'accidentalDoubleSharp' };
+
+  function accidental(acc, x, y, size) {
+    return ACCIDENTAL[acc] ? glyph(ACCIDENTAL[acc], x, y, { size: size }) : '';
   }
-
-  function flat(x, y) {
-    return line(x + 0.6, y - 17, x + 0.6, y + 5, 1.4) +
-      strokePath('M' + r(x + 0.6) + ',' + r(y - 1.6) + ' C' + r(x + 3.4) + ',' + r(y - 6.4) + ' ' +
-        r(x + 9.4) + ',' + r(y - 6) + ' ' + r(x + 8.2) + ',' + r(y - 1.4) + ' C' + r(x + 7.2) + ',' +
-        r(y + 1.6) + ' ' + r(x + 3.8) + ',' + r(y + 3.4) + ' ' + r(x + 0.6) + ',' + r(y + 5), 2);
-  }
-
-  function natural(x, y) {
-    const bar = (yy) => fillPath('M' + r(x) + ',' + r(yy + 1.4) + ' L' + r(x + 6.6) + ',' + r(yy - 0.8) +
-      ' L' + r(x + 6.6) + ',' + r(yy + 1.8) + ' L' + r(x) + ',' + r(yy + 4) + 'Z');
-    return line(x + 0.6, y - 14, x + 0.6, y + 5.4, 1.3) + line(x + 6, y - 5.4, x + 6, y + 14, 1.3) +
-      bar(y - 5) + bar(y + 1.6);
-  }
-
-  // Double sharp: a small x with blocky ends, about one staff space wide.
-  function doubleSharp(x, y) {
-    const c = x + 4.5, h = 3.4, e = 2.6;
-    let s = strokePath('M' + r(c - h) + ',' + r(y - h) + ' L' + r(c + h) + ',' + r(y + h) +
-      ' M' + r(c + h) + ',' + r(y - h) + ' L' + r(c - h) + ',' + r(y + h), 1.5, 'butt');
-    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([dx, dy]) => {
-      s += rect(c + dx * (h + 0.4) - e / 2, y + dy * (h + 0.4) - e / 2, e, e);
-    });
-    return s;
-  }
-
-  function accidental(acc, x, y) {
-    if (acc === 'x') return doubleSharp(x, y);
-    if (acc === '#') return sharp(x, y);
-    if (acc === 'b') return flat(x, y);
-    if (acc === 'n') return natural(x, y);
-    return '';
-  }
+  function accidentalWidth(acc, size) { return ACCIDENTAL[acc] ? width(ACCIDENTAL[acc], size) : 0; }
 
   /* ---------- notes ---------- */
 
+  const HEAD = { w: 'noteheadWhole', h: 'noteheadHalf' };
+  const FLAGS = { '8': ['flag8thUp', 'flag8thDown'], '16': ['flag16thUp', 'flag16thDown'] };
+
+  // A notehead centred on x.
   function notehead(x, y, kind) {
-    if (kind === 'whole') {
-      return g('translate(' + r(x) + ',' + r(y) + ')',
-        '<path fill-rule="evenodd" d="' + ellipsePath(7.6, 4.9) + '"/>' +
-        g('rotate(55)', '<path fill="#fff" d="' + ellipsePath(3.6, 2.7) + '"/>'));
-    }
-    if (kind === 'half') {
-      return g('translate(' + r(x) + ',' + r(y) + ') rotate(-22)',
-        '<path fill-rule="evenodd" d="' + ellipsePath(6.4, 4.5) + ' ' + ellipsePath(5.2, 2.2) + '"/>');
-    }
-    return g('translate(' + r(x) + ',' + r(y) + ') rotate(-22)', '<path d="' + ellipsePath(6.4, 4.5) + '"/>');
+    const name = kind === 'whole' ? 'noteheadWhole' : kind === 'half' ? 'noteheadHalf' : 'noteheadBlack';
+    return glyph(name, x - width(name) / 2, y);
   }
-
-  // Flag(s) on a stem whose free end is at (sx, sy).
-  function flags(sx, sy, count, up) {
-    let s = '';
-    for (let i = 0; i < count; i++) {
-      const o = i * 8 * (up ? 1 : -1);
-      const d = up
-        ? 'M' + r(sx) + ',' + r(sy + o) + ' C' + r(sx + 0.6) + ',' + r(sy + o + 7) + ' ' + r(sx + 11.6) + ',' +
-          r(sy + o + 11) + ' ' + r(sx + 9) + ',' + r(sy + o + 23) + ' C' + r(sx + 9.6) + ',' + r(sy + o + 15) + ' ' +
-          r(sx + 4) + ',' + r(sy + o + 11.4) + ' ' + r(sx) + ',' + r(sy + o + 9.6) + 'Z'
-        : 'M' + r(sx) + ',' + r(sy + o) + ' C' + r(sx + 0.6) + ',' + r(sy + o - 7) + ' ' + r(sx + 11.6) + ',' +
-          r(sy + o - 11) + ' ' + r(sx + 9) + ',' + r(sy + o - 23) + ' C' + r(sx + 9.6) + ',' + r(sy + o - 15) + ' ' +
-          r(sx + 4) + ',' + r(sy + o - 11.4) + ' ' + r(sx) + ',' + r(sy + o - 9.6) + 'Z';
-      s += fillPath(d);
-    }
-    return s;
-  }
-
-  const FLAG_COUNT = { '8': 1, '16': 2 };
 
   /*
-   * A single note. opts: { dur: 'w'|'h'|'q'|'8'|'16', up: bool, dots: n,
+   * A single note centred on x. opts: { dur: 'w'|'h'|'q'|'8'|'16', up: bool, dots: n,
    *   stemLen, noFlag: bool (for beamed notes), dotUp: bool (note on a line) }
-   * Returns { svg, stemX, stemEnd }.
+   * Returns { svg, stemX, stemEnd } where stemX is the centre of the stem.
    */
   function note(x, y, opts) {
     const dur = opts.dur;
     const up = opts.up !== false;
-    let s = notehead(x, y, dur === 'w' ? 'whole' : dur === 'h' ? 'half' : 'filled');
+    const headName = HEAD[dur] || 'noteheadBlack';
+    const left = x - width(headName) / 2;
+    let s = glyph(headName, left, y);
     let stemX = null, stemEnd = null;
     if (dur !== 'w') {
-      const len = opts.stemLen || 35;
-      stemX = up ? x + 5.7 : x - 5.7;
-      stemEnd = up ? y - len : y + len;
-      s += line(stemX, up ? y - 1.2 : y + 1.2, stemX, stemEnd, 1.3);
-      if (!opts.noFlag && FLAG_COUNT[dur]) s += flags(stemX, stemEnd, FLAG_COUNT[dur], up);
+      const stemW = ENGRAVING.stem * SP * 1.3;
+      const len = (opts.stemLen || 35) + (dur === '16' && !opts.noFlag ? 3 : 0);
+      if (up) {
+        stemX = left + STEM_UP_SE[0] * SP - stemW / 2;
+        stemEnd = y - len;
+        s += line(stemX, y - STEM_UP_SE[1] * SP, stemX, stemEnd, stemW);
+      } else {
+        stemX = left + STEM_DOWN_NW[0] * SP + stemW / 2;
+        stemEnd = y + len;
+        s += line(stemX, y - STEM_DOWN_NW[1] * SP, stemX, stemEnd, stemW);
+      }
+      if (!opts.noFlag && FLAGS[dur]) s += glyph(FLAGS[dur][up ? 0 : 1], stemX - stemW / 2, stemEnd);
     }
+    const right = left + width(headName);
     for (let i = 0; i < (opts.dots || 0); i++) {
-      s += circle(x + (dur === 'w' ? 12 : 10.5) + i * 5, y - (opts.dotUp ? HALF : 0), 1.9);
+      s += glyph('augmentationDot', right + 3 + i * 6, y - (opts.dotUp ? HALF : 0));
     }
     return { svg: s, stemX: stemX, stemEnd: stemEnd };
   }
 
-  // A horizontal beam joining stems (all stems up, ending at yTop).
+  // A horizontal beam joining stems (all stems up, beam top at yTop).
   function beam(x1, x2, yTop, level) {
-    const y = yTop + (level || 0) * 7.5;
-    return rect(x1 - 0.65, y, x2 - x1 + 1.3, 5);
+    const t = ENGRAVING.beam * SP;
+    const y = yTop + (level || 0) * (t + ENGRAVING.beamSpacing * SP);
+    const half = ENGRAVING.stem * SP * 0.65;
+    return rect(x1 - half, y, x2 - x1 + 2 * half, t);
   }
 
-  /* ---------- rests (centred on the middle line at y) ---------- */
+  /* ---------- rests, centred on x; `mid` is the staff's middle line ---------- */
+
+  const REST = { w: 'restWhole', h: 'restHalf', q: 'restQuarter', '8': 'rest8th' };
 
   function rest(kind, x, mid) {
-    if (kind === 'w') return rect(x - 6.5, mid - SP, 13, 5.2);       // hangs from line 4
-    if (kind === 'h') return rect(x - 6.5, mid - 5.2, 13, 5.2);       // sits on line 3
-    if (kind === 'q') {
-      return g('translate(' + r(x - 5) + ',' + r(mid) + ')',
-        strokePath('M2,-14.5 L8.2,-6.4', 1.7) +
-        strokePath('M8.2,-6.4 L2.6,0', 4.4) +
-        strokePath('M2.6,0 L8.4,6.2', 1.7) +
-        strokePath('M8.4,6.2 C4.4,3.8 0.8,6.8 2.4,10.6 C3.2,12.6 4.8,14 6.4,15', 2.6));
-    }
-    if (kind === '8') {
-      return g('translate(' + r(x - 4) + ',' + r(mid) + ')',
-        circle(1.8, -4.6, 2.9) +
-        strokePath('M1.8,-2.6 C4,-0.8 7,-2.6 8.6,-6 L3.6,11', 1.5));
-    }
-    return '';
+    const name = REST[kind];
+    if (!name) return '';
+    // The whole rest hangs from the line above the middle; the others sit on the middle line.
+    return glyph(name, x - width(name) / 2, kind === 'w' ? mid - SP : mid);
   }
 
-  /* ---------- symbols ---------- */
+  /* ---------- articulations and other symbols ---------- */
 
-  function downBow(x, y) {   // ⊓ — (x, y) is the top-left corner
-    return rect(x, y, 14, 3.6) + line(x + 0.6, y, x + 0.6, y + 11, 1.3) + line(x + 13.4, y, x + 13.4, y + 11, 1.3);
+  // "Above" symbols have their baseline at the bottom; these centre them on cx.
+  function above(name, cx, baseY, size) { return glyph(name, cx - width(name, size) / 2, baseY, { size: size }); }
+
+  function downBow(cx, baseY) { return above('stringsDownBow', cx, baseY); }
+  function upBow(cx, baseY) { return above('stringsUpBow', cx, baseY); }
+  function staccato(cx, baseY) { return above('articStaccatoAbove', cx, baseY); }
+  function accent(cx, baseY) { return above('articAccentAbove', cx, baseY); }
+  function tenuto(cx, baseY) { return above('articTenutoAbove', cx, baseY); }
+  function fermata(cx, baseY) { return above('fermataAbove', cx, baseY); }
+  function coda(cx, baseY, size) { return above('coda', cx, baseY, size); }
+  function tuplet3(cx, baseY) { return above('tuplet3', cx, baseY); }
+
+  // A time-signature digit, centred on cx and on the line at cy.
+  function timeSigDigit(d, cx, cy) {
+    const name = 'timeSig' + d;
+    return glyph(name, cx - width(name) / 2, cy);
   }
-  function upBow(x, y) {     // V — (x, y) is the top-left corner
-    return strokePath('M' + r(x) + ',' + r(y) + ' L' + r(x + 5.5) + ',' + r(y + 14) + ' L' + r(x + 11) + ',' + r(y), 1.4, 'butt');
+
+  // Dynamics, using Leland's ready-made combinations.
+  const DYNAMICS = {
+    pp: 'dynamicPP', p: 'dynamicPiano', mp: 'dynamicMP', mf: 'dynamicMF', f: 'dynamicForte',
+    ff: 'dynamicFF', fp: 'dynamicFortePiano', sfz: 'dynamicSforzato'
+  };
+  function dynamic(str, cx, baseY, size) {
+    return glyph(DYNAMICS[str], cx, baseY, { size: size, anchor: 'middle' });
   }
-  function staccatoDot(x, y) { return circle(x, y, 1.9); }
-  function accentMark(x, y) {
-    return strokePath('M' + r(x - 5.5) + ',' + r(y - 3.6) + ' L' + r(x + 5.5) + ',' + r(y) + ' L' + r(x - 5.5) + ',' + r(y + 3.6), 1.5, 'butt');
-  }
-  function tenutoMark(x, y) { return rect(x - 5.5, y - 1, 11, 2); }
-  function fermata(x, y) {   // (x, y) is the centre of the base
-    return fillPath('M' + r(x - 12) + ',' + r(y) + ' C' + r(x - 12) + ',' + r(y - 15.5) + ' ' + r(x + 12) + ',' + r(y - 15.5) + ' ' +
-      r(x + 12) + ',' + r(y) + ' C' + r(x + 10) + ',' + r(y - 11.4) + ' ' + r(x - 10) + ',' + r(y - 11.4) + ' ' + r(x - 12) + ',' + r(y) + 'Z') +
-      circle(x, y - 3, 2.1);
-  }
-  // A slur or tie curve between two points; bulges downward if `down`.
+
+  // A slur or tie between two points; bulges downward if `down`.
   function curve(x1, y1, x2, y2, down, height) {
     const h = (height || 7) * (down ? 1 : -1);
     const mx1 = x1 + (x2 - x1) * 0.25, mx2 = x1 + (x2 - x1) * 0.75;
     return fillPath('M' + r(x1) + ',' + r(y1) + ' C' + r(mx1) + ',' + r(y1 + h) + ' ' + r(mx2) + ',' + r(y2 + h) + ' ' + r(x2) + ',' + r(y2) +
-      ' C' + r(mx2) + ',' + r(y2 + h * 0.7) + ' ' + r(mx1) + ',' + r(y1 + h * 0.7) + ' ' + r(x1) + ',' + r(y1) + 'Z');
+      ' C' + r(mx2) + ',' + r(y2 + h * 0.75) + ' ' + r(mx1) + ',' + r(y1 + h * 0.75) + ' ' + r(x1) + ',' + r(y1) + 'Z');
   }
   function hairpin(x1, x2, y, opening) {
     const h = 7;
     return opening
-      ? strokePath('M' + r(x2) + ',' + r(y - h) + ' L' + r(x1) + ',' + r(y) + ' L' + r(x2) + ',' + r(y + h), 2.2, 'butt')
-      : strokePath('M' + r(x1) + ',' + r(y - h) + ' L' + r(x2) + ',' + r(y) + ' L' + r(x1) + ',' + r(y + h), 2.2, 'butt');
+      ? strokePath('M' + r(x2) + ',' + r(y - h) + ' L' + r(x1) + ',' + r(y) + ' L' + r(x2) + ',' + r(y + h), 1.8, 'butt')
+      : strokePath('M' + r(x1) + ',' + r(y - h) + ' L' + r(x2) + ',' + r(y) + ' L' + r(x1) + ',' + r(y + h), 1.8, 'butt');
   }
-  function repeatDots(x, top) { return circle(x, top + 15, 2) + circle(x, top + 25, 2); }
+
+  /* ---------- barlines ---------- */
+
+  const THIN = ENGRAVING.thinBarline * SP, THICK = ENGRAVING.thickBarline * SP;
+  const GAP = ENGRAVING.barlineSeparation * SP, DOT_GAP = ENGRAVING.repeatDotSeparation * SP;
+  const DOT_R = 2;
+
+  function repeatDots(x, top) { return circle(x, top + 15, DOT_R) + circle(x, top + 25, DOT_R); }
   function endRepeat(x, top) {   // x = right edge
-    return repeatDots(x - 11, top) + line(x - 6.5, top, x - 6.5, top + 40, 1.3) + rect(x - 4, top, 4, 40);
+    const thinX = x - THICK - GAP - THIN / 2;
+    return repeatDots(thinX - THIN / 2 - DOT_GAP - DOT_R, top) + line(thinX, top, thinX, top + 40, THIN) + rect(x - THICK, top, THICK, 40);
   }
   function startRepeat(x, top) { // x = left edge
-    return rect(x, top, 4, 40) + line(x + 6.5, top, x + 6.5, top + 40, 1.3) + repeatDots(x + 11, top);
+    const thinX = x + THICK + GAP + THIN / 2;
+    return rect(x, top, THICK, 40) + line(thinX, top, thinX, top + 40, THIN) + repeatDots(thinX + THIN / 2 + DOT_GAP + DOT_R, top);
   }
-  function finalBarline(x, top) { return line(x - 7, top, x - 7, top + 40, 1.3) + rect(x - 4.5, top, 4.5, 40); }
-  function coda(x, y) {
-    return '<ellipse cx="' + r(x) + '" cy="' + r(y) + '" rx="9" ry="11" fill="none" stroke="' + INK + '" stroke-width="3.2"/>' +
-      line(x, y - 17, x, y + 17, 1.6) + line(x - 15, y, x + 15, y, 1.6);
-  }
-  function dynamicText(x, y, str, size) {
-    return text(x, y, str, size || 40, { spacing: -1 });
+  function finalBarline(x, top) {
+    const thinX = x - THICK - GAP - THIN / 2;
+    return line(thinX, top, thinX, top + 40, THIN) + rect(x - THICK, top, THICK, 40);
   }
 
   global.Notation = {
-    SP: SP, HALF: HALF, svg: svg, g: g, rect: rect, line: line, circle: circle, text: text,
+    SP: SP, HALF: HALF, svg: svg, g: g, rect: rect, line: line, circle: circle, text: text, glyph: glyph, width: width,
     staff: staff, singleLine: singleLine, barline: barline, ledgers: ledgers,
-    clef: clef, accidental: accidental, note: note, notehead: notehead, beam: beam, rest: rest,
+    clef: clef, clefWidth: clefWidth, accidental: accidental, accidentalWidth: accidentalWidth,
+    note: note, notehead: notehead, beam: beam, rest: rest,
     staffPos: staffPos, posToY: posToY, diatonic: diatonic,
-    downBow: downBow, upBow: upBow, staccatoDot: staccatoDot, accentMark: accentMark,
-    tenutoMark: tenutoMark, fermata: fermata, curve: curve, hairpin: hairpin,
-    endRepeat: endRepeat, startRepeat: startRepeat, finalBarline: finalBarline, coda: coda,
-    dynamicText: dynamicText, strokePath: strokePath, fillPath: fillPath
+    downBow: downBow, upBow: upBow, staccato: staccato, accent: accent, tenuto: tenuto,
+    fermata: fermata, coda: coda, tuplet3: tuplet3, timeSigDigit: timeSigDigit, dynamic: dynamic,
+    curve: curve, hairpin: hairpin,
+    endRepeat: endRepeat, startRepeat: startRepeat, finalBarline: finalBarline,
+    strokePath: strokePath, fillPath: fillPath
   };
 })(window);

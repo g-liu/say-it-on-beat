@@ -59,7 +59,7 @@
     const vbTop = Math.min(NOTE_VB_TOP, Math.floor(y - clearance - 1));
     return N.svg('0 ' + vbTop + ' 130 ' + (NOTE_VB_BOTTOM - vbTop),
       N.staff(3, 127, top) + N.clef('treble', 6, top) + N.ledgers(x, pos, top) +
-      N.accidental(acc, acc === '#' ? 66 : acc === 'x' ? 70 : 69, y) + n.svg);
+      N.accidental(acc, x - N.width('noteheadBlack') / 2 - 2.5 - N.accidentalWidth(acc), y) + n.svg);
   }
 
   const sayName = (name) => name[0] + (ACC_WORD[name.slice(1)] || '');
@@ -269,7 +269,7 @@
     const top = stems.length ? A4 - 35 : 0;
     s += N.beam(stems[0], stems[stems.length - 1], top, 0);
     (secondary || []).forEach(([a, b]) => { s += N.beam(stems[a], stems[b], top, 1); });
-    if (tupletLabel) s += N.text((stems[0] + stems[stems.length - 1]) / 2, top - 5, tupletLabel, 15);
+    if (tupletLabel) s += N.tuplet3((stems[0] + stems[stems.length - 1]) / 2, top - 4);
     return s;
   }
 
@@ -327,7 +327,8 @@
   function keySigSvg(type, count) {
     let s = staff5() + N.clef('treble', 6, TOP);
     const positions = type === '#' ? SHARP_POS : FLAT_POS;
-    for (let i = 0; i < count; i++) s += N.accidental(type, 38 + i * 13, N.posToY(positions[i], TOP));
+    const step = N.accidentalWidth(type) + 2;
+    for (let i = 0; i < count; i++) s += N.accidental(type, 38 + i * step, N.posToY(positions[i], TOP));
     return card(s);
   }
 
@@ -347,17 +348,17 @@
    * ========================================================= */
 
   const CLEF_ITEMS = [
-    { id: 'clef-treble', svg: card(staff5() + N.clef('treble', 53, TOP)), say: 'Treble clef', detail: 'G clef · violin music' },
-    { id: 'clef-bass', svg: card(staff5() + N.clef('bass', 51, TOP)), say: 'Bass clef', detail: 'F clef · cello and bass' },
-    { id: 'clef-alto', svg: card(staff5() + N.clef('alto', 55, TOP)), say: 'Alto clef', detail: 'C clef on the middle line · viola' },
-    { id: 'clef-tenor', svg: card(staff5() + N.clef('tenor', 55, TOP)), say: 'Tenor clef', detail: 'C clef on the 4th line · high cello' }
+    { id: 'clef-treble', svg: card(staff5() + N.clef('treble', 65 - N.clefWidth('treble') / 2, TOP)), say: 'Treble clef', detail: 'G clef · violin music' },
+    { id: 'clef-bass', svg: card(staff5() + N.clef('bass', 65 - N.clefWidth('bass') / 2, TOP)), say: 'Bass clef', detail: 'F clef · cello and bass' },
+    { id: 'clef-alto', svg: card(staff5() + N.clef('alto', 65 - N.clefWidth('alto') / 2, TOP)), say: 'Alto clef', detail: 'C clef on the middle line · viola' },
+    { id: 'clef-tenor', svg: card(staff5() + N.clef('tenor', 65 - N.clefWidth('tenor') / 2, TOP)), say: 'Tenor clef', detail: 'C clef on the 4th line · high cello' }
   ];
 
   /* =========================================================
    * Dynamics
    * ========================================================= */
 
-  function dynCard(str) { return card(N.dynamicText(65, 76, str, 50)); }
+  function dynCard(str) { return card(N.dynamic(str, 65, 72, 80)); }
 
   const DYNAMIC_ITEMS = [
     { id: 'dyn-pp', svg: dynCard('pp'), say: 'Pianissimo', detail: 'pp · very soft' },
@@ -376,20 +377,22 @@
    * Symbols: bowing, articulation, repeats, signs
    * ========================================================= */
 
-  const B4 = N.posToY(4, TOP), D5 = N.posToY(6, TOP), G4 = N.posToY(2, TOP);
+  const B4 = N.posToY(4, TOP), G4 = N.posToY(2, TOP);
 
   function articulationCard(mark) {
-    const n = N.note(65, D5, { dur: 'q', up: false });
-    const y = TOP - 6;
+    // C5 sits in a space, so a staccato or tenuto fits in the next space up (the accent goes above the staff).
+    const C5 = N.posToY(5, TOP);
+    const n = N.note(65, C5, { dur: 'q', up: false });
+    const space = C5 - N.SP;
     let m = '';
-    if (mark === 'staccato') m = N.staccatoDot(65, y + 1);
-    if (mark === 'accent') m = N.accentMark(65, y - 2);
-    if (mark === 'tenuto') m = N.tenutoMark(65, y);
+    if (mark === 'staccato') m = N.staccato(65, space + 1.6);
+    if (mark === 'accent') m = N.accent(65, TOP - 3);
+    if (mark === 'tenuto') m = N.tenuto(65, space + 0.9);
     return card(staff5() + n.svg + m);
   }
   function bowCard(down) {
     const n = N.note(65, B4, { dur: 'q', up: false });
-    return card(staff5() + n.svg + (down ? N.downBow(58, 22) : N.upBow(59.5, 20)));
+    return card(staff5() + n.svg + (down ? N.downBow(65, TOP - 5) : N.upBow(65, TOP - 5)));
   }
 
   const SYMBOL_ITEMS = [
@@ -406,7 +409,7 @@
     { id: 'sym-staccato', svg: articulationCard('staccato'), say: 'Staccato', detail: 'short and separated' },
     { id: 'sym-accent', svg: articulationCard('accent'), say: 'Accent', detail: 'start the note strongly' },
     { id: 'sym-tenuto', svg: articulationCard('tenuto'), say: 'Tenuto', detail: 'full length, a little weight' },
-    { id: 'sym-fermata', svg: card(staff5() + N.note(65, B4, { dur: 'q', up: false }).svg + N.fermata(65, 34)),
+    { id: 'sym-fermata', svg: card(staff5() + N.note(65, B4, { dur: 'q', up: false }).svg + N.fermata(65, TOP - 5)),
       say: 'Fermata', detail: 'hold longer than written' },
     { id: 'sym-pizz', svg: card(N.text(65, 72, 'pizz.', 40)), say: 'Pizzicato', detail: 'pluck the string' },
     { id: 'sym-arco', svg: card(N.text(65, 72, 'arco', 40)), say: 'Arco', detail: 'play with the bow again' },
@@ -421,10 +424,10 @@
       say: 'First and second endings', detail: '1st time take ending 1, 2nd time skip to ending 2' },
     { id: 'sym-dc', svg: card(N.text(65, 70, 'D.C. al Fine', 21)), say: 'D.C. al Fine', detail: 'back to the beginning, stop at Fine' },
     { id: 'sym-fine', svg: card(N.text(65, 72, 'Fine', 36)), say: 'Fine', detail: '“fee-nay” · the end' },
-    { id: 'sym-coda', svg: card(N.g('translate(65,62) scale(1.5)', N.coda(0, 0))), say: 'Coda', detail: 'jump to the ending section' },
-    { id: 'sym-sharp', svg: card(N.g('translate(65,62) scale(2.3)', N.accidental('#', -4, 0))), say: 'Sharp', detail: 'raises a note a half step' },
-    { id: 'sym-flat', svg: card(N.g('translate(65,68) scale(2.3)', N.accidental('b', -4, 0))), say: 'Flat', detail: 'lowers a note a half step' },
-    { id: 'sym-natural', svg: card(N.g('translate(65,62) scale(2.3)', N.accidental('n', -3.3, 0))), say: 'Natural', detail: 'cancels a sharp or flat' },
+    { id: 'sym-coda', svg: card(N.coda(65, 84, 64)), say: 'Coda', detail: 'jump to the ending section' },
+    { id: 'sym-sharp', svg: card(N.accidental('#', 65 - N.accidentalWidth('#', 92) / 2, 62, 92)), say: 'Sharp', detail: 'raises a note a half step' },
+    { id: 'sym-flat', svg: card(N.accidental('b', 65 - N.accidentalWidth('b', 92) / 2, 74, 92)), say: 'Flat', detail: 'lowers a note a half step' },
+    { id: 'sym-natural', svg: card(N.accidental('n', 65 - N.accidentalWidth('n', 92) / 2, 62, 92)), say: 'Natural', detail: 'cancels a sharp or flat' },
     { id: 'sym-final', svg: card(staff5() + N.note(50, A4, { dur: 'h', up: true }).svg + N.finalBarline(110, TOP)),
       say: 'Final barline', detail: 'the end of the piece' }
   ];
@@ -500,8 +503,7 @@
   function rhythmSvg(cells, meter) {
     const bw = (R_X1 - R_X0) / meter;
     let s = N.singleLine(6, 312, R_LINE) + N.barline(312, R_LINE - 20, R_LINE + 20, 1.6);
-    s += N.text(22, R_LINE - 4, String(meter), 30, { italic: false, weight: '900' }) +
-      N.text(22, R_LINE + 26, '4', 30, { italic: false, weight: '900' });
+    s += N.timeSigDigit(meter, 22, R_LINE - 10) + N.timeSigDigit(4, 22, R_LINE + 10);
     const stemTop = R_LINE - 35;
     cells.forEach((c) => {
       const cell = CELLS[c.name];
@@ -520,7 +522,7 @@
         if (a === b) return;
         s += N.beam(stems[a], stems[b], stemTop, level);
       });
-      if (cell.tuplet) s += N.text((stems[0] + stems[stems.length - 1]) / 2, stemTop - 5, cell.tuplet, 16);
+      if (cell.tuplet) s += N.tuplet3((stems[0] + stems[stems.length - 1]) / 2, stemTop - 4);
     });
     return N.svg(R_VB, s, 'wide');
   }

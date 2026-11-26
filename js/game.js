@@ -757,6 +757,9 @@
     });
   }
 
+  // Load the music font now so the first cards don't flash blank.
+  if (document.fonts && document.fonts.load) document.fonts.load('40px "SayItOnBeat Music"', '\uE050').catch(() => {});
+
   renderCategories();
   bindSetup();
   bindGame();

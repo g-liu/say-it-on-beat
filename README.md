@@ -2,7 +2,7 @@
 
 A classroom version of the "Say the Word on Beat" game for violin class. Eight cards appear one at a time over a drum beat. Then each card lights up on the beat, and the class says it out loud.
 
-Play it at **https://g-liu.github.io/say-it-on-beat/**, or open `index.html` in a browser. There's no install, build step or internet connection needed. All the notation is drawn in SVG and the music is made with Web Audio.
+Play it at **https://g-liu.github.io/say-it-on-beat/**, or open `index.html` in a browser. There's no install, build step or internet connection needed. The notation uses the Leland music font (the one MuseScore uses), built into the stylesheet, and the music is made with Web Audio.
 
 ## Categories
 
@@ -58,7 +58,10 @@ The on-screen controls hide while the game is running. Move the mouse to bring t
 
 ## Files
 
-- `js/notation.js`: SVG staff, clefs, notes, rests and symbols
+- `js/notation.js`: places Leland's symbols (clefs, notes, rests, accidentals, dynamics, articulations) and draws staff lines, stems, beams and barlines in SVG
+- `css/music-font.css`: the symbols the app uses from Leland, embedded so the page works offline. Generated; don't edit.
+- `tools/build_font.py`: rebuilds `css/music-font.css` from the submodule
+- `vendor/leland`: the [Leland](https://github.com/MuseScoreFonts/Leland) font, as a git submodule
 - `js/content.js`: the categories and their cards
 - `js/audio.js`: drum machine, bass and chords
 - `js/game.js`: setup screen, round planning, beat scheduling, controls
@@ -66,3 +69,15 @@ The on-screen controls hide while the game is running. Move the mouse to bring t
 ## Hosting
 
 GitHub Pages serves the site from the root of `main` (Settings → Pages → Deploy from a branch → `main` / root), so every push updates it. `.nojekyll` tells Pages to serve the files as they are.
+
+## Music font
+
+The symbols come from [Leland](https://github.com/MuseScoreFonts/Leland), copyright MuseScore BVBA, under the SIL Open Font License 1.1 (`fonts/OFL.txt`). The license reserves the name "Leland", so the trimmed copy in `css/music-font.css` is named "SayItOnBeat Music".
+
+To rebuild it, for example after updating Leland or adding a symbol to `GLYPHS` in `js/notation.js` and `CODEPOINTS` in the script:
+
+```
+git submodule update --init
+pip install fonttools
+python3 tools/build_font.py
+```

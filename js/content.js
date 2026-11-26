@@ -41,12 +41,19 @@
     const step = name[0];
     const acc = name.length > 1 ? name[1] : '';
     const pos = N.staffPos(step, octave, 'treble');
-    const y = N.posToY(pos, TOP);
+    // Very high notes: slide the staff down so the ledger lines still fit on the card.
+    const top = TOP + Math.min(17, Math.max(0, 14 - (N.posToY(pos, TOP) - 6)));
+    const y = N.posToY(pos, top);
     const x = 88;
-    const n = N.note(x, y, { dur: 'q', up: pos < 4 });
-    return card(staff5() + N.clef('treble', 6, TOP) + N.ledgers(x, pos, TOP) +
+    const up = pos < 4;
+    // Notes far above or below the staff get stems that reach the middle line.
+    const stemLen = Math.max(35, Math.abs(pos - 4) * N.HALF);
+    const n = N.note(x, y, { dur: 'q', up: up, stemLen: stemLen });
+    return card(N.staff(3, 127, top) + N.clef('treble', 6, top) + N.ledgers(x, pos, top) +
       N.accidental(acc, acc === '#' ? 66 : 69, y) + n.svg);
   }
+
+  const sayName = (name) => pretty(name).replace(SHARP, ' sharp').replace(FLAT, ' flat');
 
   // Home position, high-2 pattern: G A B C · D E F# G · A B C# D · E F# G# A B
   const HOME_SEMIS = { G: [0, 2, 4, 5], D: [0, 2, 4, 5], A: [0, 2, 4, 5], E: [0, 2, 4, 5, 7] };
@@ -61,7 +68,7 @@
         out.push({
           id: 'note-home-' + midi,
           svg: noteSvg(name, octave),
-          say: pretty(name).replace(SHARP, ' sharp'),
+          say: sayName(name),
           detail: pretty(name) + octave + ' · ' + s.name + ', ' + FINGER[semi] + (semi === 0 ? '' : ' finger')
         });
       });
@@ -69,25 +76,144 @@
     return out;
   }
 
-  function notePool(strings, spelling) {
-    const map = spelling === 'sharp' ? SHARP_PC : spelling === 'flat' ? FLAT_PC : NATURAL_PC;
-    const byMidi = new Map();
-    STRINGS.filter((s) => strings.indexOf(s.id) >= 0).forEach((s) => {
-      for (let semi = 0; semi <= 7; semi++) {
-        const midi = s.open + semi;
-        const name = map[midi % 12];
-        if (!name) continue;
-        const where = s.name + ', ' + FINGER[semi] + (semi === 0 ? '' : ' finger');
-        if (!byMidi.has(midi)) byMidi.set(midi, { name: name, octave: Math.floor(midi / 12) - 1, where: [] });
-        byMidi.get(midi).where.push(where);
+  /* =========================================================
+   * Diatonic note names: a scale, chromatic in a range, or picked notes
+   * ========================================================= */
+
+  const LETTERS = 'CDEFGAB';
+  const LETTER_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const accValue = (name) => (name[1] === '#' ? 1 : name[1] === 'b' ? -1 : 0);
+  const toMidi = (name, octave) => (octave + 1) * 12 + LETTER_PC[name[0]] + accValue(name);
+  // The octave number a spelling takes for a given pitch (so B#3 = C4, Cb4 = B3).
+  const octaveFor = (name, midi) => Math.round((midi - LETTER_PC[name[0]] - accValue(name)) / 12) - 1;
+  const label = (name, octave) => pretty(name) + octave;
+
+  const SCALE_TYPES = {
+    major: { name: 'major', steps: [2, 2, 1, 2, 2, 2, 1] },
+    natural: { name: 'natural minor', steps: [2, 1, 2, 2, 1, 2, 2] },
+    harmonic: { name: 'harmonic minor', steps: [2, 1, 2, 2, 1, 3, 1] },
+    melodic: { name: 'melodic minor', steps: [2, 1, 2, 2, 2, 2, 1], down: [2, 1, 2, 2, 1, 2, 2] }
+  };
+  // Keys whose scales need no double sharps or flats; tonics start at or above the violin's open G.
+  const MAJOR_KEYS = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'F', 'Bb', 'Eb', 'Ab', 'Db'];
+  const MINOR_KEYS = ['A', 'E', 'B', 'F#', 'C#', 'D', 'G', 'C', 'F', 'Bb', 'Eb'];
+
+  // Note names for the range menus: the naturals from open G up to E6.
+  const RANGE_NOTES = [];
+  for (let m = 55; m <= 88; m++) if (NATURAL_PC[m % 12]) RANGE_NOTES.push(NATURAL_PC[m % 12] + (Math.floor(m / 12) - 1));
+  const rangeMidi = (s) => toMidi(s.replace(/\d+$/, ''), Number(s.match(/\d+$/)[0]));
+
+  // Spellings for the "pick notes" chips: naturals, then sharps, then flats.
+  const PICK_ROWS = [
+    ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+    ['C#', 'D#', 'E#', 'F#', 'G#', 'A#', 'B#'],
+    ['Cb', 'Db', 'Eb', 'Fb', 'Gb', 'Ab', 'Bb']
+  ];
+
+  // The 7 spelled degrees of a scale: [{ name, semi }] where semi counts up from the tonic.
+  function spellScale(tonic, steps) {
+    const li = LETTERS.indexOf(tonic[0]);
+    const tonicPc = LETTER_PC[tonic[0]] + accValue(tonic);
+    const out = [];
+    let semi = 0;
+    for (let d = 0; d < 7; d++) {
+      const letter = LETTERS[(li + d) % 7];
+      let diff = (((tonicPc + semi - LETTER_PC[letter]) % 12) + 12) % 12;
+      if (diff > 6) diff -= 12;
+      out.push({ name: letter + (diff === 1 ? '#' : diff === -1 ? 'b' : ''), semi: semi, degree: d + 1 });
+      semi += steps[d];
+    }
+    return out;
+  }
+
+  function pitchItem(name, octave, extra) {
+    return {
+      id: 'pitch-' + name + octave,
+      svg: noteSvg(name, octave),
+      say: sayName(name),
+      detail: label(name, octave) + (extra ? ' · ' + extra : '')
+    };
+  }
+
+  function scaleItems(s) {
+    const type = SCALE_TYPES[s.scaleType] || SCALE_TYPES.major;
+    const tonic = s.scaleKey;
+    // Lowest tonic at or above open G (G3).
+    let start = toMidi(tonic, 3);
+    if (start < 55) start += 12;
+    const octaves = s.scaleOctaves === 2 ? 2 : 1;
+    const forms = [{ degrees: spellScale(tonic, type.steps), note: type.down ? 'raised, going up' : '' }];
+    if (type.down) forms.push({ degrees: spellScale(tonic, type.down), note: 'natural, coming down' });
+
+    const seen = new Map();
+    forms.forEach((form) => {
+      for (let o = 0; o < octaves; o++) {
+        form.degrees.forEach((d) => {
+          const midi = start + o * 12 + d.semi;
+          const octave = octaveFor(d.name, midi);
+          const key = d.name + octave;
+          if (seen.has(key)) return;
+          const variant = form.note && (d.degree === 6 || d.degree === 7) ? ', ' + form.note : '';
+          seen.set(key, { midi: midi, item: pitchItem(d.name, octave, 'scale degree ' + d.degree + variant) });
+        });
       }
     });
-    return Array.from(byMidi.entries()).sort((a, b) => a[0] - b[0]).map(([midi, n]) => ({
-      id: 'note-' + spelling + '-' + midi,
-      svg: noteSvg(n.name, n.octave),
-      say: pretty(n.name).replace(SHARP, ' sharp').replace(FLAT, ' flat'),
-      detail: pretty(n.name) + n.octave + ' · ' + n.where.join(' or ')
-    }));
+    const topOct = octaveFor(tonic, start + octaves * 12);
+    seen.set(tonic + topOct, { midi: start + octaves * 12, item: pitchItem(tonic, topOct, 'scale degree 1') });
+    return Array.from(seen.values()).sort((a, b) => a.midi - b.midi).map((v) => v.item);
+  }
+
+  function rangeBounds(s) {
+    let lo = rangeMidi(RANGE_NOTES.indexOf(s.rangeLow) >= 0 ? s.rangeLow : 'G3');
+    let hi = rangeMidi(RANGE_NOTES.indexOf(s.rangeHigh) >= 0 ? s.rangeHigh : 'B5');
+    if (lo > hi) { const t = lo; lo = hi; hi = t; }
+    return [lo, hi];
+  }
+
+  function chromaticItems(s) {
+    const [lo, hi] = rangeBounds(s);
+    const out = [];
+    for (let m = lo; m <= hi; m++) {
+      const oct = Math.floor(m / 12) - 1;
+      const nat = NATURAL_PC[m % 12];
+      if (nat) { out.push(pitchItem(nat, oct)); continue; }
+      const sh = SHARP_PC[m % 12], fl = FLAT_PC[m % 12];
+      out.push(pitchItem(sh, oct, 'same pitch as ' + label(fl, oct)));
+      out.push(pitchItem(fl, oct, 'same pitch as ' + label(sh, oct)));
+    }
+    return out;
+  }
+
+  function pickedItems(s) {
+    const [lo, hi] = rangeBounds(s);
+    const out = [];
+    (s.pitchClasses || []).forEach((name) => {
+      for (let oct = 2; oct <= 7; oct++) {
+        const m = toMidi(name, oct);
+        if (m >= lo && m <= hi) out.push({ midi: m, item: pitchItem(name, oct) });
+      }
+    });
+    return out.sort((a, b) => a.midi - b.midi).map((v) => v.item);
+  }
+
+  function pitchPool(s) {
+    let items;
+    if (s.pitchMode === 'chromatic') items = chromaticItems(s);
+    else if (s.pitchMode === 'pick') items = pickedItems(s);
+    else items = scaleItems(s);
+    return items.length ? items : chromaticItems(s);
+  }
+
+  // A one-line description of the current choice, for the category tile.
+  function pitchSummary(s) {
+    if (s.pitchMode === 'chromatic') return 'Chromatic, ' + s.rangeLow + ' to ' + s.rangeHigh;
+    if (s.pitchMode === 'pick') {
+      const names = (s.pitchClasses || []).map(pretty);
+      const list = names.length > 6 ? names.length + ' notes' : names.join(' ');
+      return list + ', ' + s.rangeLow + ' to ' + s.rangeHigh;
+    }
+    const type = SCALE_TYPES[s.scaleType] || SCALE_TYPES.major;
+    return pretty(s.scaleKey) + ' ' + type.name + ' scale, ' + (s.scaleOctaves === 2 ? '2 octaves' : '1 octave');
   }
 
   /* =========================================================
@@ -394,10 +520,8 @@
       pool: () => BASIC_VALUES },
     { id: 'advvalues', name: 'Advanced note values', desc: 'Dotted notes, triplets, sixteenths', kind: 'single',
       pool: () => ADVANCED_VALUES },
-    { id: 'sharps', name: 'Note names with sharps', desc: 'Sharps in home position', kind: 'single', strings: true,
-      pool: (s) => notePool(s.strings, 'sharp') },
-    { id: 'flats', name: 'Note names with flats', desc: 'Flats in home position', kind: 'single', strings: true,
-      pool: (s) => notePool(s.strings, 'flat') },
+    { id: 'pitches', name: 'Diatonic note names', desc: 'A scale, chromatic in a range, or notes you pick', kind: 'single',
+      pitchOptions: true, pool: (s) => pitchPool(s) },
     { id: 'keys', name: 'Key signatures', desc: 'Up to 4 sharps or 4 flats', kind: 'single',
       pool: () => KEY_ITEMS },
     { id: 'clefs', name: 'Clefs', desc: 'Treble, bass, alto, tenor', kind: 'single',
@@ -422,5 +546,9 @@
     return pool[Math.floor(rng() * pool.length)];
   }
 
-  global.Content = { CATEGORIES: CATEGORIES, STRINGS: STRINGS, byId: byId, pick: pick };
+  global.Content = {
+    CATEGORIES: CATEGORIES, STRINGS: STRINGS, byId: byId, pick: pick,
+    MAJOR_KEYS: MAJOR_KEYS, MINOR_KEYS: MINOR_KEYS, RANGE_NOTES: RANGE_NOTES, PICK_ROWS: PICK_ROWS,
+    pretty: pretty, pitchPool: pitchPool, pitchSummary: pitchSummary
+  };
 })(window);

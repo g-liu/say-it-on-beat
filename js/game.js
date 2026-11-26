@@ -27,8 +27,20 @@
     speedUp: true,
     showAnswers: true,
     memory: false,
-    volume: 0.8
+    volume: 0.8,
+    // Diatonic note names
+    pitchMode: 'scale',          // 'scale' | 'chromatic' | 'pick'
+    scaleType: 'major',          // 'major' | 'natural' | 'harmonic' | 'melodic'
+    scaleKey: 'D',
+    scaleOctaves: 1,
+    rangeLow: 'G3',
+    rangeHigh: 'B5',
+    pitchClasses: ['C', 'D', 'E', 'F', 'G', 'A', 'B']
   };
+
+  const MINOR_TYPES = ['natural', 'harmonic', 'melodic'];
+  const SCALE_TYPE_OK = (t) => t === 'major' || MINOR_TYPES.indexOf(t) >= 0;
+  const keysFor = (type) => (MINOR_TYPES.indexOf(type) >= 0 ? Content.MINOR_KEYS : Content.MAJOR_KEYS);
 
   /* ============================ settings ============================ */
 
@@ -36,7 +48,21 @@
     let s = {};
     try { s = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { s = {}; }
     const out = Object.assign({}, DEFAULTS, s);
-    out.categories = (out.categories || []).filter((id) => Content.byId(id));
+    out.categories = (out.categories || []).slice();
+    // The old sharps / flats categories became Diatonic note names.
+    if ((out.categories.indexOf('sharps') >= 0 || out.categories.indexOf('flats') >= 0) && out.categories.indexOf('pitches') < 0) {
+      out.categories.push('pitches');
+    }
+    out.categories = out.categories.filter((id) => Content.byId(id));
+    if (['scale', 'chromatic', 'pick'].indexOf(out.pitchMode) < 0) out.pitchMode = DEFAULTS.pitchMode;
+    if (!SCALE_TYPE_OK(out.scaleType)) out.scaleType = DEFAULTS.scaleType;
+    if (keysFor(out.scaleType).indexOf(out.scaleKey) < 0) out.scaleKey = keysFor(out.scaleType)[0];
+    out.scaleOctaves = out.scaleOctaves === 2 ? 2 : 1;
+    if (Content.RANGE_NOTES.indexOf(out.rangeLow) < 0) out.rangeLow = DEFAULTS.rangeLow;
+    if (Content.RANGE_NOTES.indexOf(out.rangeHigh) < 0) out.rangeHigh = DEFAULTS.rangeHigh;
+    const allPcs = [].concat.apply([], Content.PICK_ROWS);
+    out.pitchClasses = (out.pitchClasses || []).filter((p) => allPcs.indexOf(p) >= 0);
+    if (!out.pitchClasses.length) out.pitchClasses = DEFAULTS.pitchClasses.slice();
     out.strings = (out.strings || []).filter((id) => 'GDAE'.indexOf(id) >= 0);
     if (!out.strings.length) out.strings = DEFAULTS.strings.slice();
     return out;
@@ -56,7 +82,45 @@
     $('stringChips').innerHTML = Content.STRINGS.map((s) =>
       '<button type="button" class="chip" data-id="' + s.id + '" aria-pressed="' + (settings.strings.indexOf(s.id) >= 0) + '">' + s.id + '</button>'
     ).join('');
+    $('pcChips').innerHTML = [].concat.apply([], Content.PICK_ROWS).map((p) =>
+      '<button type="button" class="chip" data-pc="' + p + '">' + Content.pretty(p) + '</button>'
+    ).join('');
+    const rangeOpts = Content.RANGE_NOTES.map((n) => '<option value="' + n + '">' + n + '</option>').join('');
+    $('rangeLow').innerHTML = rangeOpts;
+    $('rangeHigh').innerHTML = rangeOpts;
     updateSetupState();
+  }
+
+  function updatePitchOptions() {
+    const mode = settings.pitchMode;
+    document.querySelectorAll('#pitchMode button').forEach((b) => {
+      b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
+    });
+    $('scaleSub').classList.toggle('hidden', mode !== 'scale');
+    $('pickSub').classList.toggle('hidden', mode !== 'pick');
+    $('rangeSub').classList.toggle('hidden', mode === 'scale');
+
+    const keys = keysFor(settings.scaleType);
+    const minor = MINOR_TYPES.indexOf(settings.scaleType) >= 0;
+    $('scaleKey').innerHTML = keys.map((k) =>
+      '<option value="' + k + '">' + Content.pretty(k) + (minor ? ' minor' : ' major') + '</option>').join('');
+    $('scaleKey').value = settings.scaleKey;
+    $('scaleType').value = settings.scaleType;
+    document.querySelectorAll('#octaveChips .chip').forEach((b) => {
+      b.setAttribute('aria-pressed', String(Number(b.dataset.oct) === settings.scaleOctaves));
+    });
+    document.querySelectorAll('#pcChips .chip').forEach((b) => {
+      b.setAttribute('aria-pressed', String(settings.pitchClasses.indexOf(b.dataset.pc) >= 0));
+    });
+    $('rangeLow').value = settings.rangeLow;
+    $('rangeHigh').value = settings.rangeHigh;
+
+    const pool = Content.pitchPool(settings);
+    const first = pool[0].detail.split(' · ')[0];
+    const last = pool[pool.length - 1].detail.split(' · ')[0];
+    $('pitchHint').textContent = pool.length + ' different cards, ' + first + ' to ' + last + '.';
+    const desc = document.querySelector('.cat[data-id="pitches"] .desc');
+    if (desc) desc.textContent = Content.pitchSummary(settings);
   }
 
   function selectedCats() { return settings.categories.map(Content.byId).filter(Boolean); }
@@ -70,6 +134,8 @@
       el.setAttribute('aria-pressed', String(settings.strings.indexOf(el.dataset.id) >= 0));
     });
     $('stringsOption').classList.toggle('hidden', !cats.some((c) => c.strings));
+    $('pitchOption').classList.toggle('hidden', !cats.some((c) => c.pitchOptions));
+    updatePitchOptions();
     $('rhythmOption').classList.toggle('hidden', !cats.some((c) => c.rhythm));
     $('startBtn').disabled = cats.length === 0;
 
@@ -104,6 +170,47 @@
       saveSettings();
       updateSetupState();
     });
+    const changed = () => { saveSettings(); updateSetupState(); };
+    $('pitchMode').addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      settings.pitchMode = b.dataset.mode;
+      changed();
+    });
+    $('scaleType').addEventListener('change', () => {
+      settings.scaleType = $('scaleType').value;
+      const keys = keysFor(settings.scaleType);
+      if (keys.indexOf(settings.scaleKey) < 0) settings.scaleKey = keys[0];
+      changed();
+    });
+    $('scaleKey').addEventListener('change', () => { settings.scaleKey = $('scaleKey').value; changed(); });
+    $('octaveChips').addEventListener('click', (e) => {
+      const b = e.target.closest('.chip');
+      if (!b) return;
+      settings.scaleOctaves = Number(b.dataset.oct);
+      changed();
+    });
+    $('pcChips').addEventListener('click', (e) => {
+      const b = e.target.closest('.chip');
+      if (!b) return;
+      const i = settings.pitchClasses.indexOf(b.dataset.pc);
+      if (i >= 0) { if (settings.pitchClasses.length > 1) settings.pitchClasses.splice(i, 1); }
+      else settings.pitchClasses.push(b.dataset.pc);
+      changed();
+    });
+    // Keep From at or below To.
+    const order = (n) => Content.RANGE_NOTES.indexOf(n);
+    $('rangeLow').addEventListener('change', () => {
+      settings.rangeLow = $('rangeLow').value;
+      if (order(settings.rangeLow) > order(settings.rangeHigh)) settings.rangeHigh = settings.rangeLow;
+      changed();
+    });
+    $('rangeHigh').addEventListener('change', () => {
+      settings.rangeHigh = $('rangeHigh').value;
+      if (order(settings.rangeHigh) < order(settings.rangeLow)) settings.rangeLow = settings.rangeHigh;
+      changed();
+    });
+
     $('selectAll').addEventListener('click', () => {
       settings.categories = Content.CATEGORIES.map((c) => c.id);
       saveSettings();

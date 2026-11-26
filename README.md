@@ -11,7 +11,10 @@ Pick one category or several. Picking several mixes them together in each round.
 - **Note names**: home position on each string: G A B C, D E F♯ G, A B C♯ D, E F♯ G♯ A B. You can limit it to certain strings (G, D, A, E).
 - **Basic note values**: eighth, quarter, half and whole notes, and their rests
 - **Advanced note values**: dotted notes, triplets, sixteenths
-- **Note names with sharps** / **with flats**
+- **Diatonic note names**, chosen one of three ways:
+  - **Scale**: any major, natural minor, harmonic minor or melodic minor scale, over 1 or 2 octaves, starting from the lowest tonic at or above open G. Melodic minor includes both the raised (going up) and natural (coming down) 6th and 7th.
+  - **Chromatic**: every natural, sharp and flat in a range you pick. C♯ and D♭ are separate cards.
+  - **Pick notes**: choose exact spellings (C♯ is not the same card as D♭; E♯, B♯, C♭ and F♭ are available too), in a range you pick.
 - **Key signatures**: up to 4 sharps or 4 flats
 - **Clefs**: treble, bass, alto, tenor
 - **Triple meter rhythms (3/4)** and **Double meter rhythms (4/4)**: one measure per card, with a basic or advanced level. Rhythm cards get their own rounds, because each card lasts a full measure.

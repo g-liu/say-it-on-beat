@@ -35,6 +35,44 @@
         <div class="chips" id="stringChips"></div>
       </div>
 
+      <div class="option" id="pitchOption">
+        <label>Diatonic note names</label>
+        <div class="seg" id="pitchMode" role="group" aria-label="How to choose the notes">
+          <button type="button" data-mode="scale">Scale</button>
+          <button type="button" data-mode="chromatic">Chromatic</button>
+          <button type="button" data-mode="pick">Pick notes</button>
+        </div>
+
+        <div class="sub" id="scaleSub">
+          <div class="row2">
+            <select id="scaleKey" aria-label="Key"></select>
+            <select id="scaleType" aria-label="Scale type">
+              <option value="major">Major</option>
+              <option value="natural">Natural minor</option>
+              <option value="harmonic">Harmonic minor</option>
+              <option value="melodic">Melodic minor</option>
+            </select>
+          </div>
+          <div class="chips" id="octaveChips">
+            <button type="button" class="chip" data-oct="1">1 octave</button>
+            <button type="button" class="chip" data-oct="2">2 octaves</button>
+          </div>
+        </div>
+
+        <div class="sub" id="pickSub">
+          <div class="pc-grid" id="pcChips"></div>
+        </div>
+
+        <div class="sub" id="rangeSub">
+          <div class="row2">
+            <span class="field">From <select id="rangeLow"></select></span>
+            <span class="field">To <select id="rangeHigh"></select></span>
+          </div>
+        </div>
+
+        <p class="sub-hint" id="pitchHint"></p>
+      </div>
+
       <div class="option" id="rhythmOption">
         <label for="rhythmLevel">Rhythm patterns</label>
         <select id="rhythmLevel">

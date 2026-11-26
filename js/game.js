@@ -538,7 +538,9 @@
       const beatDur = spb * b.len;
       engine.playBeat({
         t: t, spb: beatDur, sub: b.sub, barPos: b.barPos, meter: plan.meter, bar: game.bar, phase: b.phase,
-        fill: b.fill, crash: b.crash, bell: b.reveal != null ? b.reveal : null
+        fill: b.fill, crash: b.crash, bell: b.reveal != null ? b.reveal : null,
+        // Quieter groove while the computer claps, so the claps are easy to hear.
+        duck: b.phase === 'say' && plan.rhythm && settings.clap
       });
       // Clap each note of the rhythm card as it lights up.
       if (b.phase === 'say' && b.first && plan.rhythm && settings.clap) {

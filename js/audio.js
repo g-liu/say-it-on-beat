@@ -23,6 +23,7 @@
     this.bus = null;
     this.noise = null;
     this.volume = 0.8;
+    this.level = 1;          // scales the groove; lowered while the computer claps
   }
 
   Engine.prototype.init = function () {
@@ -65,7 +66,7 @@
   Engine.prototype.env = function (t, peak, attack, decay) {
     const gn = this.ctx.createGain();
     gn.gain.setValueAtTime(0.0001, t);
-    gn.gain.exponentialRampToValueAtTime(peak, t + attack);
+    gn.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak * this.level), t + attack);
     gn.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
     gn.connect(this.bus);
     return gn;
@@ -186,17 +187,34 @@
     osc.stop(t + 0.07);
   };
 
-  // A hand clap: a few quick noise bursts and a short tail.
+  // A hand clap: quick noise bursts and a short tail, a body band plus a bright snap, loud
+  // enough to stand out over the groove.
   Engine.prototype.clap = function (t, v) {
-    v = v || 0.8;
-    [0, 0.011, 0.022].forEach((dt, i) => {
-      const n = this.noiseSrc(t + dt, i === 2 ? 0.2 : 0.03);
-      const bp = this.ctx.createBiquadFilter();
-      bp.type = 'bandpass';
-      bp.frequency.value = 1250;
-      bp.Q.value = 1.1;
-      n.connect(bp);
-      bp.connect(this.env(t + dt, v * (i === 2 ? 0.9 : 0.6), 0.001, i === 2 ? 0.16 : 0.012));
+    v = (v || 1) * 2.6;
+    const ctx = this.ctx;
+    const body = ctx.createBiquadFilter();
+    body.type = 'bandpass';
+    body.frequency.value = 1400;
+    body.Q.value = 0.7;
+    body.connect(this.bus);
+    const snap = ctx.createBiquadFilter();
+    snap.type = 'highpass';
+    snap.frequency.value = 2800;
+    const snapGain = ctx.createGain();
+    snapGain.gain.value = 0.55;
+    snap.connect(snapGain);
+    snapGain.connect(this.bus);
+    [0, 0.008, 0.017, 0.027].forEach((dt, i) => {
+      const last = i === 3;
+      const n = this.noiseSrc(t + dt, last ? 0.25 : 0.03);
+      const g = ctx.createGain();
+      const peak = v * (last ? 1 : 0.75);
+      g.gain.setValueAtTime(0.0001, t + dt);
+      g.gain.exponentialRampToValueAtTime(peak, t + dt + 0.001);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dt + (last ? 0.2 : 0.014));
+      n.connect(g);
+      g.connect(body);
+      g.connect(snap);
     });
   };
 
@@ -208,10 +226,16 @@
   /*
    * One beat of the groove.
    * b = { t, spb (seconds in this beat), barPos, meter (beats per bar), sub (2 or 3 divisions),
-   *       bar, phase, fill, crash, bell }
+   *       bar, phase, fill, crash, bell, duck }
    *   phase: 'count' | 'reveal' | 'say' | 'review' | 'break' | 'end'
+   *   duck: play the groove quieter so claps stand out
    */
   Engine.prototype.playBeat = function (b) {
+    this.level = b.duck ? 0.45 : 1;
+    try { this.playBeatInner(b); } finally { this.level = 1; }
+  };
+
+  Engine.prototype.playBeatInner = function (b) {
     const t = b.t, spb = b.spb;
     const sub = b.sub || 2, step = spb / sub;
     const chord = PROGRESSION[b.bar % PROGRESSION.length];

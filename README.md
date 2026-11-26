@@ -45,7 +45,10 @@ Only the open tab is played. Each tab has categories split into subcategories. T
   - **Repeats**: repeat sign, endings, D.C. al Fine, Fine, coda, final barline
   - **Clefs**: treble, bass, alto, tenor
   - **Advanced & contemporary**: marcato, staccatissimo, accent combinations, portato, Bartók and buzz pizzicato, harmonics, tremolo, glissando, X noteheads, quarter tones, short and long fermatas, caesura, sfp, al niente, col legno, sul ponticello, sul tasto, flautando, con/senza sordino, senza vibrato
-- **Rhythms** (its own tab): one measure per card, in the time signatures you pick (2/2, 3/2, 2/4, 3/4, 4/4, 5/4, 3/8, 6/8, 7/8, 9/8, 12/8), at a basic or advanced level. Compound meters beat in dotted quarters, and 7/8 is grouped 2+2+3, with the music following the meter. Simple meters are counted "1 e & a" (and "1 trip let"); x/8 meters are counted by eighths. With several time signatures, each round uses the next one. Turn on **Clap the rhythm** to have the computer clap each card during "Say it!".
+- **Rhythms** (its own tab): one measure per card.
+  - **Time signatures**: Simple (2/4, 3/4, 4/4, common time C, cut time ¢, 3/8, 6/8) and Complex (2/2, 3/2, 5/4, 7/8, 9/8, 12/8). C and ¢ work exactly like 4/4 and 2/2. 2/4, 3/4 and 4/4 are picked when you turn it on. With several, each round uses the next one.
+  - **Note values**: buttons with the note symbols: sixteenths, eighths, quarters, halves, whole notes, dotted eighth + sixteenth, dotted quarters, dotted halves, triplets (in simple meters), duplets (in 6/8, 9/8, 12/8) and rests. Values that don't fit the picked time signatures are greyed out. Defaults: eighths, quarters, halves, wholes, dotted halves (for 3/4) and rests.
+  - Compound meters beat in dotted quarters, and 7/8 is grouped 2+2+3, with the music following the meter. Simple meters are counted "1 e & a" (and "1 trip let"); x/8 meters are counted by eighths. Turn on **Clap the rhythm** to have the computer clap each card during "Say it!".
 
 ## Running a round
 

@@ -602,66 +602,118 @@
    * ========================================================= */
 
   // Durations are in units of 1/48 of a whole note: sixteenth 3, eighth 6, quarter 12,
-  // dotted quarter 18, half 24, whole 48; an eighth-note triplet is 4.
+  // dotted quarter 18, half 24, whole 48; an eighth-note triplet is 4, a duplet eighth in 6/8 is 9.
   // Beat lengths per meter; compound meters beat in dotted quarters, and 7/8 is 2+2+3.
+  // Common and cut time work exactly like 4/4 and 2/2 (`like`) but show the C and ¢ symbols.
   const METERS = {
-    '2/2': { top: 2, bottom: 2, beats: [24, 24], count: 'beat' },
-    '3/2': { top: 3, bottom: 2, beats: [24, 24, 24], count: 'beat' },
     '2/4': { top: 2, bottom: 4, beats: [12, 12], count: 'beat' },
     '3/4': { top: 3, bottom: 4, beats: [12, 12, 12], count: 'beat' },
     '4/4': { top: 4, bottom: 4, beats: [12, 12, 12, 12], count: 'beat' },
-    '5/4': { top: 5, bottom: 4, beats: [12, 12, 12, 12, 12], count: 'beat' },
+    'C': { top: 4, bottom: 4, beats: [12, 12, 12, 12], count: 'beat', like: '4/4', sym: 'common', name: 'Common time' },
+    'cut': { top: 2, bottom: 2, beats: [24, 24], count: 'beat', like: '2/2', sym: 'cut', name: 'Cut time' },
     '3/8': { top: 3, bottom: 8, beats: [6, 6, 6], count: 'eighth' },
-    '6/8': { top: 6, bottom: 8, beats: [18, 18], count: 'eighth' },
+    '6/8': { top: 6, bottom: 8, beats: [18, 18], count: 'eighth', compound: true },
+    '2/2': { top: 2, bottom: 2, beats: [24, 24], count: 'beat' },
+    '3/2': { top: 3, bottom: 2, beats: [24, 24, 24], count: 'beat' },
+    '5/4': { top: 5, bottom: 4, beats: [12, 12, 12, 12, 12], count: 'beat' },
     '7/8': { top: 7, bottom: 8, beats: [12, 12, 18], count: 'eighth' },
-    '9/8': { top: 9, bottom: 8, beats: [18, 18, 18], count: 'eighth' },
-    '12/8': { top: 12, bottom: 8, beats: [18, 18, 18, 18], count: 'eighth' }
+    '9/8': { top: 9, bottom: 8, beats: [18, 18, 18], count: 'eighth', compound: true },
+    '12/8': { top: 12, bottom: 8, beats: [18, 18, 18, 18], count: 'eighth', compound: true }
   };
   const METER_IDS = Object.keys(METERS);
+  // The two groups of time-signature buttons.
+  const METER_GROUPS = { Simple: ['2/4', '3/4', '4/4', 'C', 'cut', '3/8', '6/8'], Complex: ['2/2', '3/2', '5/4', '7/8', '9/8', '12/8'] };
+  const DEFAULT_METERS = ['2/4', '3/4', '4/4'];
+  const meterName = (id) => METERS[id].name || id;
 
-  // One-beat cells for each beat length: durations (negative = rest), weight, and an optional tuplet.
+  /*
+   * Note values for rhythms, picked with symbol buttons. Triplets only fit meters whose beat splits
+   * in two (simple meters counted in beats); duplets only fit compound meters (6/8, 9/8, 12/8).
+   */
+  const RHYTHM_VALUES = [
+    ['16', 'Sixteenths'], ['8', 'Eighths'], ['q', 'Quarters'], ['h', 'Halves'], ['w', 'Whole notes'],
+    ['d8', 'Dotted eighth + sixteenth'], ['dq', 'Dotted quarters'], ['dh', 'Dotted halves'],
+    ['trip', 'Triplets'], ['dup', 'Duplets'], ['rest', 'Rests']
+  ];
+  // "Whole (or dotted half in 3/4)": both are on, and each shows up where it fits. Rests stay on as before.
+  const DEFAULT_RHYTHM_VALUES = ['8', 'q', 'h', 'w', 'dh', 'rest'];
+
+  // One-beat cells for each beat length: [durations (negative = rest), weight, note values it uses, tuplet].
   const BEAT_CELLS = {
-    12: {
-      basic: { q: [[12], 4], ee: [[6, 6], 4], qr: [[-12], 1.4] },
-      advanced: { ssss: [[3, 3, 3, 3], 1.5], e_ss: [[6, 3, 3], 1], ss_e: [[3, 3, 6], 1], trip: [[4, 4, 4], 1, true],
-        de_s: [[9, 3], 0.8], er_e: [[-6, 6], 0.8] }
-    },
-    24: {
-      basic: { h: [[24], 4], qq: [[12, 12], 4], hr: [[-24], 1.2] },
-      advanced: { q_ee: [[12, 6, 6], 1.2], ee_q: [[6, 6, 12], 1.2], eeee: [[6, 6, 6, 6], 1], dq_e: [[18, 6], 1],
-        qr_q: [[-12, 12], 0.8], qtrip: [[8, 8, 8], 0.6, true] }
-    },
-    6: {
-      basic: { e: [[6], 4], er: [[-6], 1.2] },
-      advanced: { ss: [[3, 3], 2] }
-    },
-    18: {
-      basic: { dq: [[18], 3], q_e: [[12, 6], 3], eee: [[6, 6, 6], 3], dqr: [[-18], 0.8] },
-      advanced: { e_q: [[6, 12], 1], ss_e_e: [[3, 3, 6, 6], 1], e_ss_e: [[6, 3, 3, 6], 1], de_s_e: [[9, 3, 6], 1],
-        er_e_e: [[-6, 6, 6], 0.8], s6: [[3, 3, 3, 3, 3, 3], 0.6] }
-    }
+    12: [
+      [[12], 4, ['q']], [[6, 6], 4, ['8']], [[-12], 1.4, ['q', 'rest']],
+      [[3, 3, 3, 3], 1.5, ['16']], [[6, 3, 3], 1, ['8', '16']], [[3, 3, 6], 1, ['8', '16']],
+      [[4, 4, 4], 1, ['trip'], 3], [[9, 3], 0.8, ['d8']], [[-6, 6], 0.8, ['8', 'rest']]
+    ],
+    24: [
+      [[24], 4, ['h']], [[12, 12], 4, ['q']], [[-24], 1.2, ['h', 'rest']],
+      [[12, 6, 6], 1.2, ['q', '8']], [[6, 6, 12], 1.2, ['q', '8']], [[6, 6, 6, 6], 1, ['8']],
+      [[18, 6], 1, ['dq']], [[-12, 12], 0.8, ['q', 'rest']], [[8, 8, 8], 0.6, ['trip'], 3]
+    ],
+    6: [
+      [[6], 4, ['8']], [[-6], 1.2, ['8', 'rest']], [[3, 3], 2, ['16']]
+    ],
+    18: [
+      [[18], 3, ['dq']], [[12, 6], 3, ['q', '8']], [[6, 6, 6], 3, ['8']], [[-18], 0.8, ['dq', 'rest']],
+      [[6, 12], 1, ['q', '8']], [[3, 3, 6, 6], 1, ['16', '8']], [[6, 3, 3, 6], 1, ['16', '8']],
+      [[9, 3, 6], 1, ['d8', '8']], [[-6, 6, 6], 0.8, ['8', 'rest']], [[3, 3, 3, 3, 3, 3], 0.6, ['16']],
+      [[9, 9], 1, ['dup'], 2]
+    ]
   };
 
-  // Cells longer than one beat, and the beats they may start on in each meter.
+  // Cells longer than one beat, and the beats they may start on in each meter (C and cut use 4/4 and 2/2).
   const MULTI_CELLS = [
-    { ev: [24], span: 2, beat: 12, w: 2, starts: { '2/4': [0], '3/4': [0, 1], '4/4': [0, 2], '5/4': [0, 1, 3], '7/8': [0] } },
-    { ev: [-24], span: 2, beat: 12, w: 0.4, starts: { '4/4': [0, 2] } },
-    { ev: [18, 6], span: 2, beat: 12, w: 1.2, advanced: true, starts: { '2/4': [0], '3/4': [0, 1], '4/4': [0, 2], '5/4': [0, 1, 3] } },
-    { ev: [36], span: 3, beat: 12, w: 0.7, starts: { '3/4': [0], '4/4': [0, 1], '5/4': [0] } },
-    { ev: [48], span: 4, beat: 12, w: 0.4, starts: { '4/4': [0] } },
-    { ev: [48], span: 2, beat: 24, w: 1, starts: { '2/2': [0], '3/2': [0, 1] } },
-    { ev: [72], span: 3, beat: 24, w: 0.4, starts: { '3/2': [0] } },
-    { ev: [36, 12], span: 2, beat: 24, w: 0.8, advanced: true, starts: { '2/2': [0], '3/2': [0, 1] } },
-    { ev: [12], span: 2, beat: 6, w: 1.5, starts: { '3/8': [0, 1] } },
-    { ev: [18], span: 3, beat: 6, w: 0.6, starts: { '3/8': [0] } },
-    { ev: [36], span: 2, beat: 18, w: 0.8, starts: { '6/8': [0], '9/8': [0, 1], '12/8': [0, 2] } },
-    { ev: [72], span: 4, beat: 18, w: 0.3, starts: { '12/8': [0] } }
+    { ev: [24], span: 2, beat: 12, w: 2, uses: ['h'], starts: { '2/4': [0], '3/4': [0, 1], '4/4': [0, 2], '5/4': [0, 1, 3], '7/8': [0] } },
+    { ev: [-24], span: 2, beat: 12, w: 0.4, uses: ['h', 'rest'], starts: { '4/4': [0, 2] } },
+    { ev: [18, 6], span: 2, beat: 12, w: 1.2, uses: ['dq'], starts: { '2/4': [0], '3/4': [0, 1], '4/4': [0, 2], '5/4': [0, 1, 3] } },
+    { ev: [36], span: 3, beat: 12, w: 1.2, uses: ['dh'], starts: { '3/4': [0], '4/4': [0, 1], '5/4': [0] } },
+    { ev: [48], span: 4, beat: 12, w: 0.6, uses: ['w'], starts: { '4/4': [0] } },
+    { ev: [48], span: 2, beat: 24, w: 1, uses: ['w'], starts: { '2/2': [0], '3/2': [0, 1] } },
+    { ev: [36, 12], span: 2, beat: 24, w: 0.8, uses: ['dh'], starts: { '2/2': [0], '3/2': [0, 1] } },
+    { ev: [12], span: 2, beat: 6, w: 1.5, uses: ['q'], starts: { '3/8': [0, 1] } },
+    { ev: [18], span: 3, beat: 6, w: 0.6, uses: ['dq'], starts: { '3/8': [0] } },
+    { ev: [36], span: 2, beat: 18, w: 0.8, uses: ['dh'], starts: { '6/8': [0], '9/8': [0, 1], '12/8': [0, 2] } }
   ];
+
+  // Whether a cell may be used in a meter: triplets need a beat that splits in two, duplets a compound meter.
+  function cellFits(tuplet, meter) {
+    if (tuplet === 3) return meter.count === 'beat';
+    if (tuplet === 2) return !!meter.compound;
+    return true;
+  }
+  const allowed = (uses, values) => uses.every((u) => values.indexOf(u) >= 0);
+
+  // Every cell that could start on beat i of a meter, with the picked note values.
+  function cellOptions(meterId, i, values) {
+    const meter = METERS[meterId];
+    const key = meter.like || meterId;
+    const len = meter.beats[i];
+    const opts = [];
+    BEAT_CELLS[len].forEach((c) => {
+      if (!cellFits(c[3], meter) || !allowed(c[2], values)) return;
+      opts.push({ ev: c[0], w: c[1], tuplet: c[3] || 0, span: 1 });
+    });
+    MULTI_CELLS.forEach((m) => {
+      if (m.beat !== len || !allowed(m.uses, values)) return;
+      if (!m.starts[key] || m.starts[key].indexOf(i) < 0 || i + m.span > meter.beats.length) return;
+      opts.push({ ev: m.ev, w: m.w, tuplet: 0, span: m.span });
+    });
+    return opts;
+  }
+
+  // Whether a note value can show up at all in a meter (for greying out buttons).
+  function valueFits(valueId, meterId) {
+    const meter = METERS[meterId];
+    const key = meter.like || meterId;
+    const inBeat = meter.beats.some((len) => BEAT_CELLS[len].some((c) => cellFits(c[3], meter) && c[2].indexOf(valueId) >= 0));
+    const inMulti = MULTI_CELLS.some((m) => m.uses.indexOf(valueId) >= 0 && m.starts[key]);
+    return inBeat || inMulti;
+  }
 
   // Duration in units -> [note value, dots].
   const NOTE_VALUE = { 72: ['w', 1], 48: ['w', 0], 36: ['h', 1], 24: ['h', 0], 18: ['q', 1], 12: ['q', 0],
     9: ['8', 1], 6: ['8', 0], 3: ['16', 0] };
-  const TUPLET_VALUE = { 4: ['8', 0], 8: ['q', 0] };
+  const TUPLET_VALUE = { 4: ['8', 0], 8: ['q', 0], 9: ['8', 0] };
   const REST_VALUE = { 24: ['h', 0], 18: ['q', 1], 12: ['q', 0], 6: ['8', 0] };
 
   function weightedPick(options, rng) {
@@ -672,33 +724,19 @@
     return options[options.length - 1];
   }
 
-  // Cells: [{ start (units), beat (index), ev: [durations], tuplet }]
-  function makeMeasure(meterId, level, rng) {
+  // Cells: [{ start (units), beat (index), ev: [durations], tuplet (0, 2 or 3) }]
+  // `values` is the list of picked note values (see RHYTHM_VALUES).
+  function makeMeasure(meterId, values, rng) {
     const meter = METERS[meterId];
-    const adv = level === 'advanced';
     const starts = [];
     meter.beats.reduce((acc, len) => { starts.push(acc); return acc + len; }, 0);
     for (let attempt = 0; attempt < 40; attempt++) {
       const cells = [];
       let i = 0;
       while (i < meter.beats.length) {
-        const len = meter.beats[i];
-        const opts = [];
-        const sets = BEAT_CELLS[len];
-        [sets.basic, adv ? sets.advanced : null].forEach((set) => {
-          if (!set) return;
-          Object.keys(set).forEach((name) => {
-            const c = set[name];
-            // Triplets don't fit eighth-note counting.
-            if (c[2] && meter.count === 'eighth') return;
-            opts.push({ ev: c[0], w: c[1], tuplet: !!c[2], span: 1 });
-          });
-        });
-        MULTI_CELLS.forEach((m) => {
-          if (m.beat !== len || (m.advanced && !adv)) return;
-          if (!m.starts[meterId] || m.starts[meterId].indexOf(i) < 0 || i + m.span > meter.beats.length) return;
-          opts.push({ ev: m.ev, w: m.w, tuplet: false, span: m.span });
-        });
+        let opts = cellOptions(meterId, i, values);
+        // If the picked values can't fill this beat, use one note for the beat.
+        if (!opts.length) opts = [{ ev: [meter.beats[i]], w: 1, tuplet: 0, span: 1 }];
         const c = weightedPick(opts, rng);
         cells.push({ start: starts[i], beat: i, ev: c.ev, tuplet: c.tuplet });
         i += c.span;
@@ -707,7 +745,7 @@
       cells.forEach((c) => c.ev.forEach((d) => { all += Math.abs(d); if (d < 0) rest += -d; }));
       if (rest <= all / 3) return cells;
     }
-    return [{ start: 0, beat: 0, ev: [meter.beats.reduce((a, b) => a + b, 0)], tuplet: false }];
+    return [{ start: 0, beat: 0, ev: [meter.beats.reduce((a, b) => a + b, 0)], tuplet: 0 }];
   }
 
   // Measure width grows with the number of sixteenths it can hold.
@@ -720,11 +758,12 @@
     const meter = METERS[meterId];
     const total = meter.beats.reduce((a, b) => a + b, 0);
     const line = 62;
-    const tsW = Math.max(N.timeSigNumberWidth(meter.top), N.timeSigNumberWidth(meter.bottom));
+    const tsW = meter.sym ? N.width('timeSigCommon') : Math.max(N.timeSigNumberWidth(meter.top), N.timeSigNumberWidth(meter.bottom));
     const tsX = 8 + tsW / 2;
     const x0 = 16 + tsW, W = measureWidth(meter);
     const barX = x0 + W + 24;   // room after the last note
-    let s = N.singleLine(4, barX, line) + N.barline(barX, line - 20, line + 20, 1.8) + N.timeSig(meter.top, meter.bottom, tsX, line);
+    let s = N.singleLine(4, barX, line) + N.barline(barX, line - 20, line + 20, 1.8) +
+      (meter.sym ? N.timeSigSymbol(meter.sym, tsX, line) : N.timeSig(meter.top, meter.bottom, tsX, line));
     const stemTop = line - 35;
     const xAt = (pos) => x0 + pos / total * W + 12;
 
@@ -783,13 +822,13 @@
         const xs = notes.filter((n) => !n.rest).map((n) => n.stemX);
         const beamedTuplet = notes.every((n) => flagged(n));
         if (beamedTuplet) {
-          s += N.tuplet3((xs[0] + xs[xs.length - 1]) / 2, stemTop - 4);
+          s += N.tupletNum(c.tuplet, (xs[0] + xs[xs.length - 1]) / 2, stemTop - 4);
         } else {
           // Quarter-note triplet: a bracket with a 3.
           const bx1 = xs[0] - 6, bx2 = xs[xs.length - 1] + 2, by = stemTop - 6;
           s += N.line(bx1, by + 4, bx1, by, 1.1) + N.line(bx1, by, (bx1 + bx2) / 2 - 7, by, 1.1) +
             N.line((bx1 + bx2) / 2 + 7, by, bx2, by, 1.1) + N.line(bx2, by, bx2, by + 4, 1.1) +
-            N.tuplet3((bx1 + bx2) / 2, by + 6);
+            N.tupletNum(c.tuplet, (bx1 + bx2) / 2, by + 6);
         }
       }
     });
@@ -828,6 +867,11 @@
         if (holding && !holding.rest) tokens.push('–');
         return;
       }
+      // A note held into this beat from before: "1 & 2 – &".
+      if (inBeat[0].pos > bs) {
+        const holding = events.find((e) => e.pos < bs && e.pos + e.len > bs);
+        if (holding && !holding.rest) tokens.push('–');
+      }
       inBeat.forEach((e) => {
         const f = (e.pos - bs) / len;
         const name = f === 0 ? String(b + 1) : Math.abs(f - 0.5) < 1e-6 ? '&' : Math.abs(f - 0.25) < 1e-6 ? 'e'
@@ -838,8 +882,8 @@
     return tokens;
   }
 
-  function rhythmItem(meterId, level, rng) {
-    const cells = makeMeasure(meterId, level, rng);
+  function rhythmItem(meterId, values, rng) {
+    const cells = makeMeasure(meterId, values, rng);
     const onsets = [];
     cells.forEach((c) => {
       let pos = c.start;
@@ -857,8 +901,40 @@
   // A time signature drawn with Leland, for the selection buttons.
   function meterChip(id) {
     const m = METERS[id];
-    return '<svg class="chip-art ts" viewBox="-20 -22 40 44" aria-hidden="true">' + N.timeSig(m.top, m.bottom, 0, 0) + '</svg>';
+    return '<svg class="chip-art ts" viewBox="-20 -22 40 44" aria-hidden="true">' +
+      (m.sym ? N.timeSigSymbol(m.sym, 0, 0) : N.timeSig(m.top, m.bottom, 0, 0)) + '</svg>';
   }
+
+  // Small pictures of note values for the rhythm buttons (and the note value chips).
+  function noteArt(body, x0, w) {
+    return '<svg class="chip-art note-art" viewBox="' + x0 + ' -42 ' + w + ' 50" aria-hidden="true"><g>' + body + '</g></svg>';
+  }
+  function beamedArt(n, dur, label) {
+    let s = '';
+    const xs = [];
+    for (let i = 0; i < n; i++) { const r = N.note(i * 16, 0, { dur: dur, up: true, noFlag: true }); s += r.svg; xs.push(r.stemX); }
+    s += N.beam(xs[0], xs[n - 1], -35, 0);
+    if (dur === '16') s += N.beam(xs[0], xs[n - 1], -35, 1);
+    if (label) s += N.tupletNum(label, (xs[0] + xs[n - 1]) / 2, -39);
+    return noteArt(s, -9, (n - 1) * 16 + 20);
+  }
+  const RHYTHM_VALUE_ART = {
+    '16': () => noteArt(N.note(0, 0, { dur: '16', up: true }).svg, -9, 26),
+    '8': () => noteArt(N.note(0, 0, { dur: '8', up: true }).svg, -9, 24),
+    'q': () => noteArt(N.note(0, 0, { dur: 'q', up: true }).svg, -9, 20),
+    'h': () => noteArt(N.note(0, 0, { dur: 'h', up: true }).svg, -9, 20),
+    'w': () => noteArt(N.note(0, 0, { dur: 'w' }).svg, -10, 22),
+    'd8': () => {
+      const a = N.note(0, 0, { dur: '8', up: true, noFlag: true, dots: 1 });
+      const b = N.note(24, 0, { dur: '16', up: true, noFlag: true });
+      return noteArt(a.svg + b.svg + N.beam(a.stemX, b.stemX, -35, 0) + N.rect(b.stemX - 8, -27.5, 8.65, 5), -9, 42);
+    },
+    'dq': () => noteArt(N.note(0, 0, { dur: 'q', up: true, dots: 1 }).svg, -9, 26),
+    'dh': () => noteArt(N.note(0, 0, { dur: 'h', up: true, dots: 1 }).svg, -9, 26),
+    'trip': () => beamedArt(3, '8', 3),
+    'dup': () => beamedArt(2, '8', 2),
+    'rest': () => noteArt(N.rest('q', 0, -14), -9, 18)
+  };
 
   /* =========================================================
    * Chords: naming, spelling, cadences
@@ -1201,7 +1277,19 @@
     ] },
     { id: 'rhythms', tab: 'rhythms', name: 'Rhythms', subcats: [
       { id: 'meters', name: 'Time signatures', rhythm: true, desc: 'One measure per card. With several, each round uses the next one.',
-        chips: METER_IDS.map((id) => ({ id: id, label: id, html: meterChip(id), cls: 'ts-chip' })) }
+        chips: [].concat.apply([], Object.keys(METER_GROUPS).map((g) => METER_GROUPS[g].map((id) =>
+          ({ id: id, label: meterName(id), html: meterChip(id), cls: 'ts-chip', group: g })))),
+        defaults: DEFAULT_METERS },
+      { id: 'rhythmvalues', name: 'Note values', fixed: true,
+        desc: 'The notes and rests the rhythms can use. Greyed out: they don’t fit the time signatures you picked.',
+        chips: RHYTHM_VALUES.map(([id, label]) => ({ id: id, label: label, html: RHYTHM_VALUE_ART[id](), cls: 'value-chip' })),
+        defaults: DEFAULT_RHYTHM_VALUES,
+        // A value that fits none of the picked time signatures can't be used.
+        chipState: (id, s) => {
+          const meters = (s.sel && s.sel.meters) || [];
+          if (!meters.length) return '';
+          return meters.some((m) => METERS[m] && valueFits(id, m)) ? '' : 'disabled';
+        } }
     ] }
   ];
 
@@ -1213,7 +1301,7 @@
     INSTRUMENTS: INSTRUMENTS, INSTRUMENT_IDS: INSTRUMENT_IDS, CLEF_MODES: CLEF_MODES, clefFor: clefFor, resolve: resolve,
     KEYS: T.KEYS, CHORD_LABELS: CHORD_LABELS,
     TABS: TABS, CATEGORIES: CATEGORIES, SUBCATS: SUBCATS, subById: subById, STRINGS: STRINGS, RELOCATED_CHIPS: RELOCATED_CHIPS,
-    METERS: METERS, METER_IDS: METER_IDS, rhythmItem: rhythmItem,
+    METERS: METERS, METER_IDS: METER_IDS, meterName: meterName, rhythmItem: rhythmItem, DEFAULT_RHYTHM_VALUES: DEFAULT_RHYTHM_VALUES,
     SCALE_CHOICES: SCALE_CHOICES, RANGE_NOTES: RANGE_NOTES, PICK_ROWS: PICK_ROWS,
     pretty: pretty, pitchPool: pitchPool, pitchSummary: pitchSummary
   };

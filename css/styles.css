@@ -140,6 +140,10 @@ kbd {
 .ichip .chip-art path, .ichip .chip-art line { stroke: currentColor; }
 .ichip.ts-chip { border-radius: 12px; padding: 4px 8px; min-width: 52px; justify-content: center; }
 .ichip.ts-chip .chip-art { height: 46px; }
+.ichip.value-chip { border-radius: 12px; padding: 4px 10px; min-width: 44px; justify-content: center; }
+.ichip.value-chip .chip-art { height: 40px; }
+.subcat[data-sub="rhythmvalues"] .ichips { margin-left: 0; }
+.subcat[data-sub="rhythmvalues"] .sub-desc { margin-left: 0; }
 .sub-extra { margin: 0 0 0 34px; }
 .optrow { display: flex; align-items: center; gap: 10px; margin-top: 10px; color: var(--muted); font-size: 0.9rem; }
 .optseg { display: inline-flex; }

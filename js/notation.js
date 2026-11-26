@@ -51,7 +51,8 @@
     tremolo3: [0xE222, 0.58],
     accidentalQuarterToneSharpStein: [0xE282, 0.72], accidentalNarrowReversedFlat: [0xE284, 0.64],
     dynamicSforzandoPiano: [0xE537, 3.256],
-    tuplet3: [0xE883, 1.116],
+    tuplet3: [0xE883, 1.116], tuplet2: [0xE882, 1.188], tuplet5: [0xE885, 1.18], tuplet6: [0xE886, 1.116], tuplet7: [0xE887, 1.088],
+    timeSigCommon: [0xE08A, 1.852], timeSigCutCommon: [0xE08B, 1.852],
     dynamicPiano: [0xE520, 1.268], dynamicMezzo: [0xE521, 1.496], dynamicForte: [0xE522, 1.336],
     dynamicSforzando: [0xE524, 0.832], dynamicZ: [0xE525, 0.956],
     dynamicPP: [0xE52B, 2.564], dynamicMP: [0xE52C, 2.784], dynamicMF: [0xE52D, 2.832], dynamicFF: [0xE52F, 2.352],
@@ -259,6 +260,8 @@
   function fermata(cx, baseY) { return above('fermataAbove', cx, baseY); }
   function coda(cx, baseY, size) { return above('coda', cx, baseY, size); }
   function tuplet3(cx, baseY) { return above('tuplet3', cx, baseY); }
+  // A tuplet number (2, 3, 5, 6, 7) centred on cx.
+  function tupletNum(n, cx, baseY) { return above('tuplet' + n, cx, baseY); }
   // Tremolo slashes centred on (cx, cy), usually across a stem.
   function tremolo(cx, cy) { return glyph('tremolo3', cx, cy); }
 
@@ -272,6 +275,10 @@
   }
   // A whole time signature: the top number above the middle line, the bottom number below.
   function timeSig(top, bottom, cx, mid) { return timeSigNumber(top, cx, mid - SP) + timeSigNumber(bottom, cx, mid + SP); }
+  // Common time (C) and cut time (¢), centred on cx and the middle line.
+  function timeSigSymbol(kind, cx, mid) {
+    return glyph(kind === 'cut' ? 'timeSigCutCommon' : 'timeSigCommon', cx, mid, { anchor: 'middle' });
+  }
 
   // Dynamics, using Leland's ready-made combinations.
   const DYNAMICS = {
@@ -323,7 +330,7 @@
     note: note, notehead: notehead, beam: beam, rest: rest,
     staffPos: staffPos, posToY: posToY, diatonic: diatonic,
     downBow: downBow, upBow: upBow, staccato: staccato, accent: accent, tenuto: tenuto,
-    fermata: fermata, coda: coda, tuplet3: tuplet3, tremolo: tremolo, above: above,
+    fermata: fermata, coda: coda, tuplet3: tuplet3, tupletNum: tupletNum, timeSigSymbol: timeSigSymbol, tremolo: tremolo, above: above,
     timeSig: timeSig, timeSigNumber: timeSigNumber, timeSigNumberWidth: timeSigNumberWidth, dynamic: dynamic,
     curve: curve, hairpin: hairpin,
     endRepeat: endRepeat, startRepeat: startRepeat, finalBarline: finalBarline,

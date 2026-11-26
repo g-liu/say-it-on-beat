@@ -30,7 +30,6 @@
     chordLabels: 'roman',        // spelling cards and cadence answers: 'roman' | 'function'
     instrument: 'violin',        // 'violin' | 'viola' | 'both' (see Content.INSTRUMENTS)
     clefMode: Content.CLEF_MODES[0],   // for 'both': 'alternate' | 'treble' | 'alto'
-    rhythmLevel: 'basic',
     clap: false,                 // clap the rhythm cards during "Say it!"
     bpm: 90,
     rounds: 5,
@@ -113,6 +112,13 @@
       const onIn = (tab) => Content.SUBCATS.some((sc) => sc.tab === tab && out.sel[sc.id].length);
       out.tab = onIn('cards') || !onIn('rhythms') ? 'cards' : 'rhythms';
     }
+    // The old basic / advanced rhythm menu becomes picked note values.
+    if (!(s.sel && s.sel.rhythmvalues) && s.rhythmLevel === 'advanced') {
+      out.sel.rhythmvalues = Content.DEFAULT_RHYTHM_VALUES.concat(['16', 'd8', 'dq', 'trip', 'dup']);
+    }
+    // Subcategories that are always on (rhythm note values) start with their defaults.
+    Content.SUBCATS.forEach((sc) => { if (sc.fixed && !out.sel[sc.id].length) out.sel[sc.id] = defaultChips(sc.id); });
+    delete out.rhythmLevel;
     delete out.categories;
     delete out.strings;
     // Key pickers keep only real keys, and at least one.
@@ -200,7 +206,7 @@
 
   function subcatHtml(sc) {
     return '<div class="subcat" data-sub="' + sc.id + '">' +
-      '<div class="subhead"><label><input type="checkbox" class="selall" data-sub="' + sc.id + '">' +
+      '<div class="subhead"><label>' + (sc.fixed ? '' : '<input type="checkbox" class="selall" data-sub="' + sc.id + '">') +
       '<span class="sub-name">' + sc.name + '</span></label>' +
       (sc.toggle ? '' : '<button type="button" class="sub-all" data-sub="' + sc.id + '">All</button>') +
       '<span class="sub-desc">' + sc.desc + '</span></div>' +
@@ -310,10 +316,11 @@
     updateInstrument();
 
     const subs = activeSubs();
-    $('startBtn').disabled = subs.length === 0;
+    // Rhythm rounds need a time signature.
+    $('startBtn').disabled = settings.tab === 'rhythms' ? !usable('meters').length : subs.length === 0;
     let hint = '';
     if (settings.tab === 'rhythms') {
-      hint = subs.length ? 'Each rhythm card is one full measure: count it, clap it, or play it on an open string.'
+      hint = usable('meters').length ? 'Each rhythm card is one full measure: count it, clap it, or play it on an open string.'
         : 'Pick at least one time signature to start.';
     } else if (!subs.length) hint = 'Pick at least one thing to practice to start.';
     else if (subs.length === 1) hint = '1 subcategory on. Turn on more to mix them in the same round.';
@@ -394,7 +401,9 @@
       if (!chip) return;
       const list = picked(chip.dataset.sub).slice();
       const i = list.indexOf(chip.dataset.id);
-      if (i >= 0) list.splice(i, 1); else list.push(chip.dataset.id);
+      const fixed = Content.subById(chip.dataset.sub).fixed;
+      if (i >= 0) { if (!fixed || list.length > 1) list.splice(i, 1); }   // always-on subcategories keep one pick
+      else list.push(chip.dataset.id);
       // Keep picks in the order the chips are shown.
       const order = allChips(chip.dataset.sub);
       settings.sel[chip.dataset.sub] = list.sort((a, b) => order.indexOf(a) - order.indexOf(b));
@@ -461,6 +470,7 @@
     });
     $('selectNone').addEventListener('click', () => {
       tabSubs().forEach((sc) => {
+        if (sc.fixed) return;
         if (picked(sc.id).length) settings.lastSel[sc.id] = picked(sc.id).slice();
         settings.sel[sc.id] = [];
       });
@@ -480,8 +490,6 @@
     $('rounds').addEventListener('change', () => { settings.rounds = Number($('rounds').value); saveSettings(); });
     $('cardOrder').value = settings.cardOrder === 'random' ? 'random' : 'patterns';
     $('cardOrder').addEventListener('change', () => { settings.cardOrder = $('cardOrder').value; saveSettings(); });
-    $('rhythmLevel').value = settings.rhythmLevel;
-    $('rhythmLevel').addEventListener('change', () => { settings.rhythmLevel = $('rhythmLevel').value; saveSettings(); });
 
     const speed = $('speedPct');
     speed.value = settings.speedUpPct;
@@ -520,14 +528,15 @@
     const subs = activeSubs().length ? activeSubs() : tabSubs();
     let html = '';
     subs.forEach((sc) => {
+      if (sc.fixed && !sc.pool) return;
       const cat = Content.CATEGORIES.find((c) => c.id === sc.cat);
       const title = cat.name + ' · ' + sc.name;
       if (sc.rhythm) {
         const meters = usable(sc.id).length ? usable(sc.id) : Content.METER_IDS;
         meters.forEach((m) => {
           const items = [];
-          for (let i = 0; i < 4; i++) items.push(Content.rhythmItem(m, settings.rhythmLevel, Math.random));
-          html += '<h3>' + title + ': ' + m + '</h3><div class="preview-grid wide">' +
+          for (let i = 0; i < 4; i++) items.push(Content.rhythmItem(m, usable('rhythmvalues'), Math.random));
+          html += '<h3>' + title + ': ' + Content.meterName(m) + '</h3><div class="preview-grid wide">' +
             items.map((it) => '<div class="pcard">' + it.svg + '<b>' + it.say + '</b></div>').join('') + '</div>';
         });
         return;
@@ -588,7 +597,7 @@
 
   // A function that draws one random card for a round.
   function cardPicker(group, meterId) {
-    if (group.rhythm) return () => Content.rhythmItem(meterId, settings.rhythmLevel, Math.random);
+    if (group.rhythm) return () => Content.rhythmItem(meterId, usable('rhythmvalues'), Math.random);
     // Build each subcategory's cards once per round, then pick a subcategory, then a card.
     let pools = group.subs.map((sc) => sc.pool(usable(sc.id), settings)).filter((p) => p.length);
     // E.g. only minor-key cadences picked with only major keys: nothing fits.
@@ -784,7 +793,7 @@
 
     const total = settings.rounds > 0 ? ' of ' + settings.rounds : '';
     $('roundLabel').innerHTML = 'Round ' + (plan.roundIdx + 1) + total + '<span class="level">' +
-      LEVEL_NAMES[plan.level] + (plan.meterId ? ' · ' + plan.meterId : '') + '</span>';
+      LEVEL_NAMES[plan.level] + (plan.meterId ? ' · ' + Content.meterName(plan.meterId) : '') + '</span>';
     $('bpmLabel').textContent = plan.bpm + ' BPM';
     $('beatDots').innerHTML = plan.beats.slice(0, plan.meter).map((b, i) =>
       '<i class="' + (i === 0 ? 'down' : '') + (b.len > 1 ? ' long' : '') + '"></i>').join('');

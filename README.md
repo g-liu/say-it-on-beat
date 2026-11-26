@@ -35,6 +35,10 @@ Only the open tab is played. Each tab has categories split into subcategories. T
 - **Note reading**
   - **Key signatures**: name the major key, from C through 6 sharps and 6 flats
   - **Scale degrees**: a note in a key (with its key signature); the class names its scale degree, shown as a number with a circumflex, like 3̂. One key is recommended; several keys is difficult.
+- **Chords**: each subcategory has chips in four tiers (Simple, Medium, Advanced, Uncommon); Simple is picked when you turn it on.
+  - **Naming chords**: a chord in notation with no key signature; the class names it ("D minor", "G7"). Simple: major, minor, dominant 7th. Medium: diminished, 1st and 2nd inversions. Advanced: augmented, major/minor/half-diminished/diminished 7ths, add 2, add 4, 9ths, 11ths, sus. Uncommon: 13ths, minor-major 7th, 6th chords, 7♭9.
+  - **Spelling chords**: a Roman numeral in a key ("IV in C major"); the class spells it from the bass up ("F A C"). Simple: I, IV, V, V7 (i, iv, V, V7 in minor). Medium: ii, iii, vi, vii°, cadential 6/4. Advanced: 7th chords, augmented, Italian/French/German augmented sixths, add 2, add 4, V9, V11. Uncommon: Neapolitan, secondary dominants, borrowed chords, V13. Pick the keys (any major or minor key), and show Roman numerals or function names ("Subdominant").
+  - **Cadences**: two chords in a key; the class names the cadence. Simple: perfect and imperfect authentic, half, plagal. Medium: deceptive, half cadences from ii6 and the cadential 6/4. Advanced: Phrygian half, Picardy third. Uncommon: minor plagal, deceptive to ♭VI.
 - **Markings**
   - **Dynamics**: pp to ff, sfz, fp, crescendo and decrescendo
   - **Bowing & articulation**: bowings, slur and tie, articulations, fermata, pizz./arco, accidentals
@@ -84,6 +88,7 @@ The on-screen controls hide while the game is running. Move the mouse to bring t
 - `css/music-font.css`: the symbols the app uses from Leland, embedded so the page works offline. Generated; don't edit.
 - `tools/build_font.py`: rebuilds `css/music-font.css` from the submodule
 - `vendor/leland`: the [Leland](https://github.com/MuseScoreFonts/Leland) font, as a git submodule
+- `js/theory.js`: spelling notes, keys, intervals, chords and cadences (no drawing). `node tools/check_theory.js` prints every chord, cadence and interval answer for checking.
 - `js/content.js`: the categories, subcategories and cards, and the rhythm generator
 - `js/audio.js`: drum machine, bass, chords and clap, following the time signature
 - `js/game.js`: setup screen, round planning, beat scheduling, controls

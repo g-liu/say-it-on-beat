@@ -141,6 +141,16 @@ kbd {
 .ichip.ts-chip { border-radius: 12px; padding: 4px 8px; min-width: 52px; justify-content: center; }
 .ichip.ts-chip .chip-art { height: 46px; }
 .sub-extra { margin: 0 0 0 34px; }
+.optrow { display: flex; align-items: center; gap: 10px; margin-top: 10px; color: var(--muted); font-size: 0.9rem; }
+.optseg { display: inline-flex; }
+.keypick { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; align-items: center; }
+.keychip {
+  background: transparent; color: var(--ink); border: 2px solid #4d5596; border-radius: 8px;
+  min-width: 40px; padding: 3px 6px; font-size: 0.88rem; font-weight: 700;
+}
+.keychip:hover { border-color: #8890d6; }
+.keychip[aria-pressed="true"] { background: var(--watch); border-color: var(--watch); color: #0d2b33; }
+.subcat:not(.on) .optrow, .subcat:not(.on) .keypick { opacity: 0.45; }
 .sub-extra:empty { display: none; }
 .sub-options { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .subcat:not(.on) .sub-options { opacity: 0.45; }

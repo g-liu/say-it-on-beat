@@ -29,7 +29,7 @@ CODEPOINTS = {
     "augmentationDot": 0xE1E7,
     "flag8thUp": 0xE240, "flag8thDown": 0xE241, "flag16thUp": 0xE242, "flag16thDown": 0xE243,
     "accidentalFlat": 0xE260, "accidentalNatural": 0xE261, "accidentalSharp": 0xE262,
-    "accidentalDoubleSharp": 0xE263,
+    "accidentalDoubleSharp": 0xE263, "accidentalDoubleFlat": 0xE264,
     "restWhole": 0xE4E3, "restHalf": 0xE4E4, "restQuarter": 0xE4E5, "rest8th": 0xE4E6,
     "articAccentAbove": 0xE4A0, "articStaccatoAbove": 0xE4A2, "articTenutoAbove": 0xE4A4,
     "fermataAbove": 0xE4C0,

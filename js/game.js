@@ -24,6 +24,10 @@
     sel: null,
     lastSel: {},                 // picks remembered when a subcategory is switched off
     tab: 'cards',                // 'cards' | 'rhythms' (see Content.TABS); only the open tab is played
+    // Keys for the subcategories that have a key picker (ids like 'C:major', 'A:minor')
+    spellKeys: ['C:major'],
+    cadenceKeys: ['C:major'],
+    chordLabels: 'roman',        // spelling cards and cadence answers: 'roman' | 'function'
     instrument: 'violin',        // 'violin' | 'viola' | 'both' (see Content.INSTRUMENTS)
     clefMode: Content.CLEF_MODES[0],   // for 'both': 'alternate' | 'treble' | 'alto'
     rhythmLevel: 'basic',
@@ -111,6 +115,17 @@
     }
     delete out.categories;
     delete out.strings;
+    // Key pickers keep only real keys, and at least one.
+    const keyIds = Content.KEYS.map((k) => k.id);
+    Content.SUBCATS.forEach((sc) => {
+      if (!sc.keyPicker) return;
+      const list = (Array.isArray(out[sc.keyPicker]) ? out[sc.keyPicker] : []).filter((k) => keyIds.indexOf(k) >= 0);
+      out[sc.keyPicker] = list.length ? list : DEFAULTS[sc.keyPicker].slice();
+    });
+    // Option switches keep one of their choices.
+    Content.SUBCATS.forEach((sc) => (sc.options || []).forEach((o) => {
+      if (o.choices.map((c) => c[0]).indexOf(out[o.setting]) < 0) out[o.setting] = DEFAULTS[o.setting];
+    }));
     if (Content.INSTRUMENT_IDS.indexOf(out.instrument) < 0) out.instrument = DEFAULTS.instrument;
     if (Content.CLEF_MODES.indexOf(out.clefMode) < 0) out.clefMode = DEFAULTS.clefMode;
     if (['scale', 'chromatic', 'pick'].indexOf(out.pitchMode) < 0) out.pitchMode = DEFAULTS.pitchMode;
@@ -165,6 +180,24 @@
     return '<div class="ichips' + (sc.chipsCls ? ' ' + sc.chipsCls : '') + '">' + out + '</div>';
   }
 
+  // Extra settings inside a subcategory: option switches and a key picker.
+  function optionsHtml(sc) {
+    return (sc.options || []).map((o) =>
+      '<div class="optrow"><span class="optlabel">' + esc(o.label) + '</span><div class="seg small optseg">' +
+      o.choices.map((c) => '<button type="button" data-setting="' + o.setting + '" data-value="' + esc(c[0]) + '">' +
+        esc(c[1]) + '</button>').join('') + '</div></div>'
+    ).join('');
+  }
+  function keyPickerHtml(sc) {
+    if (!sc.keyPicker) return '';
+    const row = (mode) => '<span class="chip-group">' + (mode === 'major' ? 'Major keys' : 'Minor keys') + '</span>' +
+      Content.KEYS.filter((k) => k.mode === mode).map((k) =>
+        '<button type="button" class="keychip" data-setting="' + sc.keyPicker + '" data-key="' + k.id + '" title="' +
+        esc(Content.pretty(k.tonic) + ' ' + k.mode) + '">' + Content.pretty(k.tonic) + (mode === 'minor' ? 'm' : '') + '</button>'
+      ).join('');
+    return '<div class="keypick">' + row('major') + row('minor') + '</div>';
+  }
+
   function subcatHtml(sc) {
     return '<div class="subcat" data-sub="' + sc.id + '">' +
       '<div class="subhead"><label><input type="checkbox" class="selall" data-sub="' + sc.id + '">' +
@@ -172,7 +205,7 @@
       (sc.toggle ? '' : '<button type="button" class="sub-all" data-sub="' + sc.id + '">All</button>') +
       '<span class="sub-desc">' + sc.desc + '</span></div>' +
       (sc.toggle ? '' : chipsHtml(sc)) +
-      '<div class="sub-extra" id="extra-' + sc.id + '"></div>' +
+      '<div class="sub-extra" id="extra-' + sc.id + '">' + optionsHtml(sc) + keyPickerHtml(sc) + '</div>' +
       '</div>';
   }
 
@@ -267,6 +300,12 @@
         el.classList.toggle('on', on > 0);
       }
     });
+    document.querySelectorAll('.optseg button').forEach((b) => {
+      b.setAttribute('aria-pressed', String(settings[b.dataset.setting] === b.dataset.value));
+    });
+    document.querySelectorAll('.keychip').forEach((b) => {
+      b.setAttribute('aria-pressed', String(settings[b.dataset.setting].indexOf(b.dataset.key) >= 0));
+    });
     updatePitchOptions();
     updateInstrument();
 
@@ -327,6 +366,23 @@
       changed();
     });
     $('categoryList').addEventListener('click', (e) => {
+      const opt = e.target.closest('.optseg button');
+      if (opt) {
+        settings[opt.dataset.setting] = opt.dataset.value;
+        changed();
+        return;
+      }
+      const keyChip = e.target.closest('.keychip');
+      if (keyChip) {
+        const list = settings[keyChip.dataset.setting];
+        const i = list.indexOf(keyChip.dataset.key);
+        if (i >= 0) { if (list.length > 1) list.splice(i, 1); }   // keep at least one key
+        else list.push(keyChip.dataset.key);
+        const order = Content.KEYS.map((k) => k.id);
+        list.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+        changed();
+        return;
+      }
       const all = e.target.closest('.sub-all');
       if (all) {
         const sc = Content.subById(all.dataset.sub);
@@ -534,7 +590,9 @@
   function cardPicker(group, meterId) {
     if (group.rhythm) return () => Content.rhythmItem(meterId, settings.rhythmLevel, Math.random);
     // Build each subcategory's cards once per round, then pick a subcategory, then a card.
-    const pools = group.subs.map((sc) => sc.pool(usable(sc.id), settings)).filter((p) => p.length);
+    let pools = group.subs.map((sc) => sc.pool(usable(sc.id), settings)).filter((p) => p.length);
+    // E.g. only minor-key cadences picked with only major keys: nothing fits.
+    if (!pools.length) pools = [[{ id: 'empty', svg: '', say: '—', detail: 'Nothing matches these settings' }]];
     return () => {
       const pool = pools[Math.floor(Math.random() * pools.length)];
       return pool[Math.floor(Math.random() * pool.length)];

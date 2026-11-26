@@ -19,11 +19,11 @@
   const TOP = 40;                 // top staff line
   const MID = TOP + 20;           // middle staff line
 
-  const SHARP = '♯', FLAT = '♭', DOUBLE_SHARP = '𝄪';
-  const ACC_SYMBOL = { '#': SHARP, b: FLAT, x: DOUBLE_SHARP };
-  const ACC_WORD = { '#': ' sharp', b: ' flat', x: ' double sharp' };
-  // 'F#' -> 'F♯'. Names are a letter plus an optional accidental: # b x (double sharp).
-  const pretty = (name) => name[0] + (ACC_SYMBOL[name.slice(1)] || name.slice(1));
+  const T = global.Theory;
+  const SHARP = '♯', FLAT = '♭';
+  const ACC_WORD = { '#': ' sharp', b: ' flat', x: ' double sharp', bb: ' double flat' };
+  // 'F#' -> 'F♯'. Names are a letter plus an optional accidental: # b x (double sharp) bb (double flat).
+  const pretty = T.pretty;
   const sayName = (name) => name[0] + (ACC_WORD[name.slice(1)] || '');
 
   function card(body) { return N.svg(CARD_VB, body); }
@@ -38,7 +38,7 @@
   const NATURAL_PC = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' };
   const SHARP_PC = { 1: 'C#', 3: 'D#', 6: 'F#', 8: 'G#', 10: 'A#' };
   const FLAT_PC = { 1: 'Db', 3: 'Eb', 6: 'Gb', 8: 'Ab', 10: 'Bb' };
-  const accValue = (name) => ({ '#': 1, b: -1, x: 2 }[name.slice(1)] || 0);
+  const accValue = T.accValue;
   const toMidi = (name, octave) => (octave + 1) * 12 + LETTER_PC[name[0]] + accValue(name);
   // The octave number a spelling takes for a given pitch (so B#3 = C4, Cb4 = B3).
   const octaveFor = (name, midi) => Math.round((midi - LETTER_PC[name[0]] - accValue(name)) / 12) - 1;
@@ -861,6 +861,282 @@
   }
 
   /* =========================================================
+   * Chords: naming, spelling, cadences
+   * ========================================================= */
+
+  const TIERS = ['Simple', 'Medium', 'Advanced', 'Uncommon'];
+  const tierChips = (list) => list.map(([id, label, tier]) => ({ id: id, label: label, group: TIERS[tier] }));
+  const tierDefaults = (list) => list.filter((c) => c[2] === 0).map((c) => c[0]);
+
+  // Naming chords (no key signature). Chip id -> the qualities it adds; inv1/inv2 add inversions of triads.
+  const NAMING_CHIPS = [
+    ['maj', 'Major', 0], ['min', 'Minor', 0], ['dom7', 'Dominant 7th (G7)', 0],
+    ['dim', 'Diminished', 1], ['inv1', '1st inversion', 1], ['inv2', '2nd inversion', 1],
+    ['aug', 'Augmented', 2], ['maj7', 'Major 7th', 2], ['min7', 'Minor 7th', 2], ['hdim7', 'Half-diminished 7th', 2],
+    ['dim7', 'Diminished 7th', 2], ['add2', 'add 2', 2], ['add4', 'add 4', 2], ['ninth', '9th chords', 2],
+    ['eleventh', '11th chords', 2], ['sus', 'sus 2 & sus 4', 2],
+    ['thirteenth', '13th chords', 3], ['mmaj7', 'Minor-major 7th', 3], ['sixth', '6th chords', 3], ['domb9', '7♭9', 3]
+  ];
+  const NAMING_QUALITIES = { ninth: ['dom9', 'maj9', 'min9'], eleventh: ['dom11'], sus: ['sus2', 'sus4'],
+    thirteenth: ['dom13'], sixth: ['maj6', 'min6'] };
+  // Roots for naming chords; chords that would need double sharps or flats are left out.
+  const NAMING_ROOTS = ['C', 'C#', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+  const TRIADS = ['maj', 'min', 'dim', 'aug'];
+  const INVERSION_NAMES = ['root position', '1st inversion', '2nd inversion'];
+
+  // Spelling chords and cadences: chip id = a kind in Theory.kindChords.
+  const SPELL_CHIPS = [
+    ['I', 'I · i', 0], ['IV', 'IV · iv', 0], ['V', 'V', 0], ['V7', 'V7', 0],
+    ['ii', 'ii · ii°', 1], ['iii', 'iii · III', 1], ['vi', 'vi · VI', 1], ['vii', 'vii°', 1], ['cad64', 'Cadential I 6/4', 1],
+    ['maj7', 'Major 7ths', 2], ['min7', 'Minor 7ths', 2], ['hdim7', 'Half-diminished 7th', 2], ['dim7', 'vii°7', 2],
+    ['aug', 'Augmented', 2], ['it6', 'Italian +6', 2], ['fr6', 'French +6', 2], ['ger6', 'German +6', 2],
+    ['add2', 'add 2', 2], ['add4', 'add 4', 2], ['V9', 'V9', 2], ['V11', 'V11', 2],
+    ['N6', 'Neapolitan', 3], ['VofV', 'V/V', 3], ['secdom', 'Other secondary dominants', 3], ['borrowed', 'Borrowed chords', 3],
+    ['V13', 'V13', 3]
+  ];
+  const CADENCE_CHIPS = [
+    ['pac', 'Perfect authentic (PAC)', 0], ['iac', 'Imperfect authentic (IAC)', 0], ['half', 'Half', 0], ['plagal', 'Plagal', 0],
+    ['deceptive', 'Deceptive', 1], ['halfii', 'Half: ii6 – V', 1], ['half64', 'Half: cadential 6/4 – V', 1],
+    ['phrygian', 'Phrygian half (minor keys)', 2], ['picardy', 'Picardy third (minor keys)', 2],
+    ['minplagal', 'Minor plagal (major keys)', 3], ['deceptiveb6', 'Deceptive to ♭VI (major keys)', 3]
+  ];
+  // How the chord is named on a spelling card: 'roman' (IV) or 'function' (Subdominant).
+  const CHORD_LABELS = [['roman', 'Roman numerals'], ['function', 'Function names']];
+
+  const LETTER_IDX = (name) => T.LETTERS.indexOf(name[0]);
+
+  // Octaves for notes listed from the bass up: each note is the first one above the last.
+  function stackUp(names, bassOctave) {
+    const out = [];
+    let prev = null;
+    names.forEach((name) => {
+      let oct = prev ? prev.octave : bassOctave;
+      if (prev) {
+        while (N.diatonic(name[0], oct) <= N.diatonic(prev.name[0], prev.octave)) oct++;
+      }
+      prev = { name: name, octave: oct };
+      out.push(prev);
+    });
+    return out;
+  }
+  // The octave for a bass note so it lands closest to staff position `target` in this clef.
+  function bassOctaveFor(name, clef, target) {
+    let best = 4, bestD = 1e9;
+    for (let o = 1; o <= 7; o++) {
+      const d = Math.abs(N.staffPos(name[0], o, clef) - target);
+      if (d < bestD) { best = o; bestD = d; }
+    }
+    return best;
+  }
+
+  /*
+   * Whole-note chords on one staff. chords: [[{ name, octave }, ...], ...] (low to high).
+   * opts: { clef, sig: { type, n } | null (no key signature: every accidental is shown), bar: barline between }
+   */
+  function chordsSvg(chords, opts) {
+    const clef = opts.clef || 'treble';
+    const head = N.width('noteheadWhole');
+    const accW = 11;
+    let minY = Infinity, maxY = -Infinity;
+    const top = TOP;
+    const sig = opts.sig ? keySignature(opts.sig.type, opts.sig.n, top, clef) : { svg: '', end: 30 };
+    let x = sig.end + 10;
+    let body = '';
+    chords.forEach((notes, ci) => {
+      const placed = notes.map((n) => {
+        const pos = N.staffPos(n.name[0], n.octave, clef);
+        const acc = opts.sig ? T.shownAcc(n.name, opts.sig) : T.accOf(n.name);
+        return { pos: pos, acc: acc };
+      }).sort((a, b) => a.pos - b.pos);
+      // Seconds: the upper note of a second goes to the right of the stem side.
+      let prev = null;
+      placed.forEach((p) => {
+        p.shift = !!(prev && p.pos - prev.pos === 1 && !prev.shift);
+        prev = p;
+      });
+      // Accidentals in columns, top down, so ones within a 6th don't collide.
+      const cols = [];
+      placed.slice().reverse().forEach((p) => {
+        if (!p.acc) return;
+        let c = 0;
+        while (cols[c] && cols[c].some((q) => Math.abs(q - p.pos) < 6)) c++;
+        (cols[c] = cols[c] || []).push(p.pos);
+        p.col = c;
+      });
+      const accSpace = cols.length * accW;
+      const cx = x + accSpace + head / 2 + 2;
+      placed.forEach((p) => {
+        const y = N.posToY(p.pos, top);
+        const nx = cx + (p.shift ? head : 0);
+        body += N.ledgers(nx, p.pos, top) + N.notehead(nx, y, 'whole');
+        if (p.acc) {
+          const w = N.accidentalWidth(p.acc);
+          body += N.accidental(p.acc, cx - head / 2 - 2 - p.col * accW - w, y);
+        }
+        minY = Math.min(minY, y - (p.acc === 'b' || p.acc === 'bb' ? 18 : 13));
+        maxY = Math.max(maxY, y + 8);
+      });
+      const anyShift = placed.some((p) => p.shift);
+      x = cx + head / 2 + (anyShift ? head : 0) + 14;
+      if (opts.bar && ci < chords.length - 1) { body += N.barline(x, top, top + 40); x += 12; }
+    });
+    const width = Math.max(130, x + 4);
+    const vbTop = Math.min(NOTE_VB_TOP + 8, Math.floor(minY));
+    const vbBottom = Math.max(NOTE_VB_BOTTOM - 8, Math.ceil(maxY));
+    return N.svg('0 ' + vbTop + ' ' + width + ' ' + (vbBottom - vbTop),
+      N.staff(3, width - 3, top) + N.clef(clef, 6, top) + sig.svg + body);
+  }
+
+  // A chord from the bass up, centred on the staff.
+  function placeChord(namesBassUp, clef, steps) {
+    const span = steps != null ? steps : 2 * (namesBassUp.length - 1);
+    const octave = bassOctaveFor(namesBassUp[0], clef, Math.round(4 - span / 2));
+    return stackUp(namesBassUp, octave);
+  }
+
+  function namingPool(sel) {
+    let qualities = [];
+    sel.forEach((id) => {
+      if (id === 'inv1' || id === 'inv2') return;
+      qualities = qualities.concat(NAMING_QUALITIES[id] || [id]);
+    });
+    const inversions = [0].concat(sel.indexOf('inv1') >= 0 ? [1] : [], sel.indexOf('inv2') >= 0 ? [2] : []);
+    // Inversions on their own: major and minor triads.
+    if (!qualities.length) qualities = ['maj', 'min'];
+    const out = [];
+    qualities.forEach((q) => {
+      NAMING_ROOTS.forEach((root) => {
+        const notes = T.chordNotes(root, q);
+        if (!notes || notes.some((n) => n.length > 2)) return;
+        const invs = TRIADS.indexOf(q) >= 0 ? inversions : [0];
+        // With inversion chips picked, triads come in those inversions (root position too only if no other).
+        const useInvs = invs.length > 1 ? invs.slice(1).concat(sel.some((id) => TRIADS.indexOf(id) >= 0) ? [0] : []) : invs;
+        useInvs.forEach((inv) => {
+          const bassUp = notes.slice(inv).concat(notes.slice(0, inv));
+          const span = TRIADS.indexOf(q) >= 0 ? 4 : T.chordSteps(q).pop();
+          const name = T.chordName(root, q);
+          out.push({
+            id: 'chord-name-' + root + q + inv,
+            draw: (clef) => chordsSvg([placeChord(bassUp, clef, span)], { clef: clef, sig: null }),
+            say: name,
+            detail: T.QUALITIES[q].name + (inv ? ', ' + INVERSION_NAMES[inv] : '') + ' · ' + T.prettyList(notes)
+          });
+        });
+      });
+    });
+    return out;
+  }
+
+  const keyList = (ids) => (ids || []).map(T.keyById).filter(Boolean);
+  const keyText = (key) => T.keyName(key);
+
+  // A Roman numeral (or function name) and "in C major", as big text.
+  function chordPromptSvg(ch, key, labels) {
+    const fs = "'Times New Roman', Times, Georgia, serif";
+    let main;
+    if (labels === 'function') {
+      const words = ch.fn.split(' ');
+      // Long names go on two lines.
+      const lines = [];
+      if (ch.fn.length > 14 && words.length > 1) {
+        let best = 1, bestD = 1e9;
+        for (let i = 1; i < words.length; i++) {
+          const d = Math.abs(words.slice(0, i).join(' ').length - words.slice(i).join(' ').length);
+          if (d < bestD) { best = i; bestD = d; }
+        }
+        lines.push(words.slice(0, best).join(' '), words.slice(best).join(' '));
+      } else lines.push(ch.fn);
+      const longest = Math.max.apply(null, lines.map((l) => l.length));
+      const size = Math.min(26, Math.floor(230 / longest));
+      main = lines.map((l, i) => N.text(65, (lines.length === 1 ? 62 : 50) + i * (size + 2), l, size, { italic: false })).join('');
+    } else {
+      const rn = ch.rn;
+      const figs = rn.figs;
+      const stacked = figs.length === 2 && /^\d$/.test(figs[0]);
+      const base = esc(rn.pre + rn.base) + (rn.q ? '<tspan font-size="26">' + esc(rn.q) + '</tspan>' : '') +
+        (rn.maj7 ? '<tspan font-size="24">M</tspan>' : '');
+      const sup = stacked ? '' : figs.length ? '<tspan font-size="22" dy="-16">' + esc(figs.join('')) + '</tspan>' : '';
+      const post = rn.post ? '<tspan font-size="36"' + (sup ? ' dy="16"' : '') + '>' + esc(rn.post) + '</tspan>' : '';
+      const len = (rn.pre + rn.base + rn.q).length + (rn.post.length) + (stacked ? 1 : figs.join('').length * 0.6);
+      const size = Math.min(46, Math.floor(160 / Math.max(2.2, len)));
+      main = '<text x="65" y="68" font-size="' + size + '" font-family="' + fs + '" font-weight="bold" text-anchor="middle">' +
+        base + sup + post + '</text>';
+      if (stacked) {
+        // Figured-bass 6 over 4, right of the numeral.
+        const w = (rn.pre + rn.base + rn.q).length * size * 0.33;
+        main += N.text(65 + w + 7, 50, figs[0], 20, { italic: false }) + N.text(65 + w + 7, 68, figs[1], 20, { italic: false });
+      }
+    }
+    return card(main + N.text(65, 98, 'in ' + esc(keyText(key)), 15, { italic: true, weight: 'normal' }));
+  }
+  function esc(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+  function spellingPool(sel, s) {
+    const labels = s.chordLabels === 'function' ? 'function' : 'roman';
+    const out = [];
+    keyList(s.spellKeys).forEach((key) => {
+      sel.forEach((kind) => {
+        T.kindChords(kind, key).forEach((ch, i) => {
+          if (!ch.notes || ch.notes.indexOf(null) >= 0) return;
+          const rnText = T.rnText(ch.rn);
+          out.push({
+            id: 'chord-spell-' + key.id + kind + i,
+            svg: chordPromptSvg(ch, key, labels),
+            say: T.prettyList(T.bassUp(ch)),
+            detail: (labels === 'function' ? rnText : ch.fn) + ' in ' + keyText(key) +
+              (ch.inversion || ch.fixedOrder ? ' · from the bass up' : '')
+          });
+        });
+      });
+    });
+    return out;
+  }
+
+  // One chord voiced for a cadence: [kind, chord index, bass member, top member]; members are
+  // 0 root, 1 3rd, 2 5th, 3 7th. The upper three voices are in close position with the top member
+  // highest: triads double one note, 7th chords use the other three notes.
+  function voiceChord(key, spec) {
+    const ch = T.kindChords(spec[0], key)[spec[1]];
+    const m = ch.notes.length, bass = spec[2], topM = spec[3];
+    let order = [];
+    for (let i = 1; i <= m; i++) order.push((topM + i) % m);   // ends with the top member
+    if (m > 3) {
+      const at = order.indexOf(bass);
+      if (at >= 0 && at < order.length - 1) order.splice(at, 1);
+    }
+    order = order.slice(-3);
+    return { chord: ch, names: [ch.notes[bass]].concat(order.map((i) => ch.notes[i])) };
+  }
+
+  function cadencePool(sel, s) {
+    const labels = s.chordLabels === 'function' ? 'function' : 'roman';
+    const out = [];
+    keyList(s.cadenceKeys).forEach((key) => {
+      sel.forEach((id) => {
+        const cad = T.CADENCES[id];
+        if (!cad || (cad.modes && cad.modes.indexOf(key.mode) < 0)) return;
+        cad.variants.forEach((v, vi) => {
+          const a = voiceChord(key, v.a), b = voiceChord(key, v.b);
+          const name = (c) => (labels === 'function' ? c.chord.fn : T.rnText(c.chord.rn));
+          out.push({
+            id: 'cadence-' + key.id + id + vi,
+            draw: (clef) => {
+              const first = placeChord(a.names, clef, 10);
+              // The second chord's bass goes as close as it can to the first one's.
+              const target = N.staffPos(first[0].name[0], first[0].octave, clef);
+              const second = stackUp(b.names, bassOctaveFor(b.names[0], clef, target));
+              return chordsSvg([first, second], { clef: clef, sig: key.sig, bar: true });
+            },
+            say: cad.name,
+            detail: name(a) + ' → ' + name(b) + ' in ' + keyText(key) + ' · ' + v.note
+          });
+        });
+      });
+    });
+    return out;
+  }
+
+  /* =========================================================
    * Categories and subcategories
    * ========================================================= */
 
@@ -906,6 +1182,16 @@
       { id: 'degrees', name: 'Scale degrees', desc: 'Name the scale degree of each note. One key is recommended; more than one is difficult!',
         chips: KEY_PAIRS.map((k) => ({ id: k.major, label: keyChipLabel(k) })), pool: (sel) => degreePool(sel) }
     ] },
+    { id: 'chords', tab: 'cards', name: 'Chords', subcats: [
+      { id: 'chordnames', name: 'Naming chords', desc: 'A chord in notation, no key signature: name it (“D minor”, “G7”)',
+        chips: tierChips(NAMING_CHIPS), defaults: tierDefaults(NAMING_CHIPS), pool: (sel) => namingPool(sel) },
+      { id: 'chordspell', name: 'Spelling chords', desc: 'A Roman numeral in a key (“IV in C major”): spell it from the bass up (“F A C”)',
+        chips: tierChips(SPELL_CHIPS), defaults: tierDefaults(SPELL_CHIPS), pool: (sel, s) => spellingPool(sel, s),
+        keyPicker: 'spellKeys', options: [{ setting: 'chordLabels', label: 'Show', choices: CHORD_LABELS }] },
+      { id: 'cadences', name: 'Cadences', desc: 'Two chords in a key: name the cadence',
+        chips: tierChips(CADENCE_CHIPS), defaults: tierDefaults(CADENCE_CHIPS), pool: (sel, s) => cadencePool(sel, s),
+        keyPicker: 'cadenceKeys', options: [{ setting: 'chordLabels', label: 'Answers use', choices: CHORD_LABELS }] }
+    ] },
     { id: 'markings', tab: 'cards', name: 'Markings', subcats: [
       itemSubcat({ id: 'dynamics', name: 'Dynamics', desc: 'pp to ff, sfz, fp, hairpins' }, DYNAMIC_ITEMS),
       itemSubcat({ id: 'symbols', name: 'Bowing & articulation', desc: 'Bowings, slurs and ties, articulations, pizz. and arco, accidentals' }, SYMBOL_ITEMS),
@@ -925,6 +1211,7 @@
 
   global.Content = {
     INSTRUMENTS: INSTRUMENTS, INSTRUMENT_IDS: INSTRUMENT_IDS, CLEF_MODES: CLEF_MODES, clefFor: clefFor, resolve: resolve,
+    KEYS: T.KEYS, CHORD_LABELS: CHORD_LABELS,
     TABS: TABS, CATEGORIES: CATEGORIES, SUBCATS: SUBCATS, subById: subById, STRINGS: STRINGS, RELOCATED_CHIPS: RELOCATED_CHIPS,
     METERS: METERS, METER_IDS: METER_IDS, rhythmItem: rhythmItem,
     SCALE_CHOICES: SCALE_CHOICES, RANGE_NOTES: RANGE_NOTES, PICK_ROWS: PICK_ROWS,

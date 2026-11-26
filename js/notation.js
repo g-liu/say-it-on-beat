@@ -35,7 +35,7 @@
     augmentationDot: [0xE1E7, 0.4],
     flag8thUp: [0xE240, 1.156], flag8thDown: [0xE241, 1.236], flag16thUp: [0xE242, 1.12], flag16thDown: [0xE243, 1.236],
     accidentalFlat: [0xE260, 0.848], accidentalNatural: [0xE261, 0.684], accidentalSharp: [0xE262, 0.976],
-    accidentalDoubleSharp: [0xE263, 1.1],
+    accidentalDoubleSharp: [0xE263, 1.1], accidentalDoubleFlat: [0xE264, 1.484],
     restWhole: [0xE4E3, 1.3], restHalf: [0xE4E4, 1.3], restQuarter: [0xE4E5, 0.94], rest8th: [0xE4E6, 1.104],
     articAccentAbove: [0xE4A0, 1.44], articStaccatoAbove: [0xE4A2, 0.312], articTenutoAbove: [0xE4A4, 1.264],
     fermataAbove: [0xE4C0, 2.488],
@@ -172,7 +172,7 @@
 
   /* ---------- accidentals (left edge at x, centred on the note's line or space) ---------- */
 
-  const ACCIDENTAL = { '#': 'accidentalSharp', b: 'accidentalFlat', n: 'accidentalNatural', x: 'accidentalDoubleSharp',
+  const ACCIDENTAL = { '#': 'accidentalSharp', b: 'accidentalFlat', n: 'accidentalNatural', x: 'accidentalDoubleSharp', bb: 'accidentalDoubleFlat',
     qs: 'accidentalQuarterToneSharpStein', qf: 'accidentalNarrowReversedFlat' };
 
   function accidental(acc, x, y, size) {

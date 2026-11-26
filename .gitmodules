@@ -1,0 +1,4 @@
+[submodule "vendor/leland"]
+	path = vendor/leland
+	url = https://github.com/MuseScoreFonts/Leland.git
+	branch = main

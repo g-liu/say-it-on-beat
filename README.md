@@ -6,20 +6,26 @@ Play it at **https://g-liu.github.io/say-it-on-beat/**, or open `index.html` in 
 
 ## Categories
 
-Pick one category or several. Picking several mixes them together in each round.
+Five categories, each split into subcategories. In each subcategory you pick individual items with the chips, or tick its checkbox to select or clear the whole subcategory. Everything you turn on is mixed together in each round, except rhythms (see below).
 
-- **Note names**: home position on each string: G A B C, D E F♯ G, A B C♯ D, E F♯ G♯ A B. You can limit it to certain strings (G, D, A, E).
-- **Basic note values**: eighth, quarter, half and whole notes, and their rests
-- **Advanced note values**: dotted notes, triplets, sixteenths
-- **Diatonic note names**, chosen one of three ways:
-  - **Scale**: one menu that goes around the circle of fifths: C major and A natural, harmonic and melodic minor, then 1 sharp through 6 sharps, then 1 flat through 6 flats. Each major key is followed by its relative minors. Scales are 1 or 2 octaves, starting from the lowest tonic at or above open G. Melodic minor includes both the raised (going up) and natural (coming down) 6th and 7th. G♯ and D♯ minor use double sharps.
-  - **Chromatic**: every natural, sharp and flat in a range you pick. C♯ and D♭ are separate cards.
-  - **Pick notes**: choose exact spellings (C♯ is not the same card as D♭; E♯, B♯, C♭ and F♭ are available too), in a range you pick.
-- **Key signatures**: up to 4 sharps or 4 flats
-- **Clefs**: treble, bass, alto, tenor
-- **Triple meter rhythms (3/4)** and **Double meter rhythms (4/4)**: one measure per card, with a basic or advanced level. Rhythm cards get their own rounds, because each card lasts a full measure.
-- **Dynamics**: pp to ff, sfz, fp, crescendo and decrescendo
-- **Symbols**: bowing, articulation, dynamics, repeats, endings, D.C. al Fine, coda, accidentals
+- **Note names**
+  - **Home position**: G A B C, D E F♯ G, A B C♯ D, E F♯ G♯ A B, on the strings you pick
+  - **Diatonic note names**, chosen one of three ways:
+    - **Scale**: one menu that goes around the circle of fifths: C major and A natural, harmonic and melodic minor, then 1 sharp through 6 sharps, then 1 flat through 6 flats. Each major key is followed by its relative minors. Scales are 1 or 2 octaves, starting from the lowest tonic at or above open G. Melodic minor includes both the raised (going up) and natural (coming down) 6th and 7th. G♯ and D♯ minor use double sharps.
+    - **Chromatic**: every natural, sharp and flat in a range you pick. C♯ and D♭ are separate cards.
+    - **Pick notes**: choose exact spellings (C♯ is not the same card as D♭; E♯, B♯, C♭ and F♭ are available too), in a range you pick.
+- **Note values**
+  - **Basic**: eighth, quarter, half and whole notes and their rests
+  - **Advanced**: dotted notes, sixteenths, triplets
+- **Key signatures**
+  - **Key signatures**: name the major key, from C through 6 sharps and 6 flats
+  - **Scale degrees**: a note in a key (with its key signature); the class names its scale degree, shown as a number with a circumflex, like 3̂. One key is recommended; several keys is difficult.
+- **Rhythms**: one measure per card, in the time signatures you pick (2/2, 3/2, 2/4, 3/4, 4/4, 5/4, 3/8, 6/8, 7/8, 9/8, 12/8), at a basic or advanced level. Compound meters beat in dotted quarters, and 7/8 is grouped 2+2+3, with the music following the meter. Simple meters are counted "1 e & a" (and "1 trip let"); x/8 meters are counted by eighths. Rhythm cards get their own rounds, because each card lasts a full measure; with several time signatures, each rhythm round uses the next one. Turn on **Clap the rhythm** to have the computer clap each card during "Say it!".
+- **Symbols**
+  - **Dynamics**: pp to ff, sfz, fp, crescendo and decrescendo
+  - **Bowing, articulation & repeats**: bowings, slur and tie, articulations, fermata, pizz./arco, repeats, endings, D.C. al Fine, coda, accidentals
+  - **Clefs**: treble, bass, alto, tenor
+  - **Advanced & contemporary**: marcato, staccatissimo, accent combinations, portato, Bartók and buzz pizzicato, harmonics, tremolo, glissando, X noteheads, quarter tones, short and long fermatas, caesura, sfp, al niente, col legno, sul ponticello, sul tasto, flautando, con/senza sordino, senza vibrato
 
 ## Running a round
 
@@ -28,7 +34,7 @@ Pick one category or several. Picking several mixes them together in each round.
 3. **Say it!**: each card lights up on the beat (rhythm cards stay lit for one measure)
 4. **Answers** (optional): every card shows what to say
 
-**Card order.** By default the first rounds follow patterns, where each letter is a different card:
+**Card order.** By default ("Progressively more random") the first rounds follow patterns, where each letter is a different card:
 
 | Round | Level | Example patterns |
 | --- | --- | --- |
@@ -62,8 +68,8 @@ The on-screen controls hide while the game is running. Move the mouse to bring t
 - `css/music-font.css`: the symbols the app uses from Leland, embedded so the page works offline. Generated; don't edit.
 - `tools/build_font.py`: rebuilds `css/music-font.css` from the submodule
 - `vendor/leland`: the [Leland](https://github.com/MuseScoreFonts/Leland) font, as a git submodule
-- `js/content.js`: the categories and their cards
-- `js/audio.js`: drum machine, bass and chords
+- `js/content.js`: the categories, subcategories and cards, and the rhythm generator
+- `js/audio.js`: drum machine, bass, chords and clap, following the time signature
 - `js/game.js`: setup screen, round planning, beat scheduling, controls
 
 ## Hosting

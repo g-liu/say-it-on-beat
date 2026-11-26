@@ -20,9 +20,10 @@
   const STORE_KEY = 'sayItOnBeat.settings.v1';
 
   const DEFAULTS = {
-    categories: ['notes'],
-    strings: ['G', 'D', 'A', 'E'],
+    // Picked chips for each subcategory (see Content.SUBCATS); a subcategory with none is off.
+    sel: null,
     rhythmLevel: 'basic',
+    clap: false,                 // clap the rhythm cards during "Say it!"
     bpm: 90,
     rounds: 5,
     speedUp: true,
@@ -43,19 +44,43 @@
 
   const SCALE_VALUES = [].concat.apply([], Content.SCALE_CHOICES.map((g) => g.options.map((o) => o.value)));
   const clamp = (v, lo, hi, dflt) => (isFinite(v) ? Math.min(hi, Math.max(lo, Number(v))) : dflt);
+  const allChips = (subId) => Content.subById(subId).chips.map((c) => c.id);
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
   /* ============================ settings ============================ */
+
+  // Settings saved before subcategories existed listed whole categories; turn those into picks.
+  function migrateSelection(s) {
+    const cats = s.categories || ['notes'];
+    const has = (id) => cats.indexOf(id) >= 0;
+    const sel = {};
+    if (has('notes')) sel.home = (s.strings && s.strings.length ? s.strings : ['G', 'D', 'A', 'E']).slice();
+    if (has('pitches') || has('sharps') || has('flats')) sel.diatonic = ['on'];
+    if (has('values')) sel.basicvalues = allChips('basicvalues');
+    if (has('advvalues')) sel.advvalues = allChips('advvalues');
+    if (has('keys')) sel.keysigs = ['C', 'G', 'D', 'A', 'E', 'F', 'Bb', 'Eb', 'Ab'].map((k) => 'key-' + k);
+    if (has('clefs')) sel.clefs = allChips('clefs');
+    if (has('dynamics')) sel.dynamics = allChips('dynamics');
+    if (has('symbols')) sel.symbols = allChips('symbols');
+    const meters = [];
+    if (has('r34')) meters.push('3/4');
+    if (has('r44')) meters.push('4/4');
+    if (meters.length) sel.meters = meters;
+    return sel;
+  }
 
   function loadSettings() {
     let s = {};
     try { s = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { s = {}; }
     const out = Object.assign({}, DEFAULTS, s);
-    out.categories = (out.categories || []).slice();
-    // The old sharps / flats categories became Diatonic note names.
-    if ((out.categories.indexOf('sharps') >= 0 || out.categories.indexOf('flats') >= 0) && out.categories.indexOf('pitches') < 0) {
-      out.categories.push('pitches');
-    }
-    out.categories = out.categories.filter((id) => Content.byId(id));
+    const sel = s.sel && typeof s.sel === 'object' ? s.sel : migrateSelection(s);
+    out.sel = {};
+    Content.SUBCATS.forEach((sc) => {
+      const valid = sc.chips.map((c) => c.id);
+      out.sel[sc.id] = (sel[sc.id] || []).filter((id) => valid.indexOf(id) >= 0);
+    });
+    delete out.categories;
+    delete out.strings;
     if (['scale', 'chromatic', 'pick'].indexOf(out.pitchMode) < 0) out.pitchMode = DEFAULTS.pitchMode;
     if (SCALE_VALUES.indexOf(out.scaleKey + ':' + out.scaleType) < 0) {
       out.scaleKey = DEFAULTS.scaleKey;
@@ -69,8 +94,6 @@
     const allPcs = [].concat.apply([], Content.PICK_ROWS);
     out.pitchClasses = (out.pitchClasses || []).filter((p) => allPcs.indexOf(p) >= 0);
     if (!out.pitchClasses.length) out.pitchClasses = DEFAULTS.pitchClasses.slice();
-    out.strings = (out.strings || []).filter((id) => 'GDAE'.indexOf(id) >= 0);
-    if (!out.strings.length) out.strings = DEFAULTS.strings.slice();
     return out;
   }
   function saveSettings() {
@@ -78,16 +101,37 @@
   }
   const settings = loadSettings();
 
+  const picked = (subId) => settings.sel[subId] || [];
+  const activeSubs = () => Content.SUBCATS.filter((sc) => picked(sc.id).length > 0);
+
   /* ============================ setup screen ============================ */
 
+  function chipHtml(sc, ch) {
+    const inner = ch.html || esc(ch.label);
+    return '<button type="button" class="ichip' + (ch.html ? ' art' : '') + (ch.cls ? ' ' + ch.cls : '') +
+      '" data-sub="' + sc.id + '" data-id="' + esc(ch.id) + '" title="' + esc(ch.label) + '" aria-label="' + esc(ch.label) + '">' +
+      inner + '</button>';
+  }
+
   function renderCategories() {
-    $('categoryList').innerHTML = Content.CATEGORIES.map((c) =>
-      '<button type="button" class="cat" data-id="' + c.id + '" aria-pressed="' + (settings.categories.indexOf(c.id) >= 0) + '">' +
-      '<span class="box">✓</span><span><span class="name">' + c.name + '</span><span class="desc">' + c.desc + '</span></span></button>'
+    $('categoryList').innerHTML = Content.CATEGORIES.map((cat) =>
+      '<details class="catgroup" open data-cat="' + cat.id + '">' +
+      '<summary><span class="cat-name">' + cat.name + '</span><span class="cat-count" id="count-' + cat.id + '"></span></summary>' +
+      cat.subcats.map((sc) =>
+        '<div class="subcat" data-sub="' + sc.id + '">' +
+        '<label class="subhead"><input type="checkbox" class="selall" data-sub="' + sc.id + '">' +
+        '<span><span class="sub-name">' + sc.name + '</span>' +
+        (sc.toggle ? '' : ' <span class="sub-all">Select all</span>') +
+        '<span class="sub-desc">' + sc.desc + '</span></span></label>' +
+        (sc.toggle ? '' : '<div class="ichips' + (sc.rhythm ? ' meter-chips' : '') + '">' + sc.chips.map((ch) => chipHtml(sc, ch)).join('') + '</div>') +
+        '<div class="sub-extra" id="extra-' + sc.id + '"></div>' +
+        '</div>'
+      ).join('') + '</details>'
     ).join('');
-    $('stringChips').innerHTML = Content.STRINGS.map((s) =>
-      '<button type="button" class="chip" data-id="' + s.id + '" aria-pressed="' + (settings.strings.indexOf(s.id) >= 0) + '">' + s.id + '</button>'
-    ).join('');
+    // The diatonic and rhythm settings live inside their subcategories.
+    $('extra-diatonic').appendChild($('pitchOption'));
+    $('extra-meters').appendChild($('rhythmOption'));
+
     $('pcChips').innerHTML = [].concat.apply([], Content.PICK_ROWS).map((p) =>
       '<button type="button" class="chip" data-pc="' + p + '">' + Content.pretty(p) + '</button>'
     ).join('');
@@ -124,58 +168,70 @@
     const first = pool[0].detail.split(' · ')[0];
     const last = pool[pool.length - 1].detail.split(' · ')[0];
     $('pitchHint').textContent = pool.length + ' different cards, ' + first + ' to ' + last + '.';
-    const desc = document.querySelector('.cat[data-id="pitches"] .desc');
+    const desc = document.querySelector('.subcat[data-sub="diatonic"] .sub-desc');
     if (desc) desc.textContent = Content.pitchSummary(settings);
   }
 
-  function selectedCats() { return settings.categories.map(Content.byId).filter(Boolean); }
-
   function updateSetupState() {
-    const cats = selectedCats();
-    document.querySelectorAll('.cat').forEach((el) => {
-      el.setAttribute('aria-pressed', String(settings.categories.indexOf(el.dataset.id) >= 0));
+    Content.SUBCATS.forEach((sc) => {
+      const n = picked(sc.id).length, total = sc.chips.length;
+      const box = document.querySelector('.selall[data-sub="' + sc.id + '"]');
+      if (box) {
+        box.checked = sc.toggle ? n > 0 : n === total;
+        box.indeterminate = !sc.toggle && n > 0 && n < total;
+      }
+      const el = document.querySelector('.subcat[data-sub="' + sc.id + '"]');
+      if (el) el.classList.toggle('on', n > 0);
     });
-    document.querySelectorAll('.chip').forEach((el) => {
-      el.setAttribute('aria-pressed', String(settings.strings.indexOf(el.dataset.id) >= 0));
+    document.querySelectorAll('.ichip').forEach((el) => {
+      el.setAttribute('aria-pressed', String(picked(el.dataset.sub).indexOf(el.dataset.id) >= 0));
     });
-    $('stringsOption').classList.toggle('hidden', !cats.some((c) => c.strings));
-    $('pitchOption').classList.toggle('hidden', !cats.some((c) => c.pitchOptions));
+    Content.CATEGORIES.forEach((cat) => {
+      const on = cat.subcats.filter((sc) => picked(sc.id).length).length;
+      const el = $('count-' + cat.id);
+      if (el) {
+        el.textContent = on ? on + ' of ' + cat.subcats.length + ' on' : '';
+        el.classList.toggle('on', on > 0);
+      }
+    });
     updatePitchOptions();
-    $('rhythmOption').classList.toggle('hidden', !cats.some((c) => c.rhythm));
-    $('startBtn').disabled = cats.length === 0;
 
-    const singles = cats.filter((c) => c.kind === 'single').length;
-    const rhythms = cats.filter((c) => c.rhythm).length;
+    const subs = activeSubs();
+    $('startBtn').disabled = subs.length === 0;
+    const rhythm = subs.some((sc) => sc.rhythm);
+    const others = subs.filter((sc) => !sc.rhythm).length;
     let hint = '';
-    if (!cats.length) hint = 'Pick at least one category to start.';
-    else if (rhythms && singles) hint = 'Rhythm cards are one measure each, so they get their own rounds, taking turns with the other cards.';
-    else if (rhythms) hint = 'Each rhythm card is one full measure: count it, clap it, or play it on an open string.';
-    else if (cats.length === 1) hint = '1 category selected. Pick more to mix them in the same round.';
-    else hint = cats.length + ' categories selected. Each round mixes them together.';
+    if (!subs.length) hint = 'Pick at least one thing to practice to start.';
+    else if (rhythm && others) hint = 'Rhythm cards are one measure each, so they get their own rounds, taking turns with the other cards.';
+    else if (rhythm) hint = 'Each rhythm card is one full measure: count it, clap it, or play it on an open string.';
+    else if (others === 1) hint = '1 subcategory on. Turn on more to mix them in the same round.';
+    else hint = others + ' subcategories on. Each round mixes them together.';
+    if (picked('degrees').length > 1) hint += ' Scale degrees in ' + picked('degrees').length + ' keys: difficult!';
     $('categoryHint').textContent = hint;
   }
 
   function bindSetup() {
-    $('categoryList').addEventListener('click', (e) => {
-      const btn = e.target.closest('.cat');
-      if (!btn) return;
-      const id = btn.dataset.id;
-      const i = settings.categories.indexOf(id);
-      if (i >= 0) settings.categories.splice(i, 1); else settings.categories.push(id);
-      saveSettings();
-      updateSetupState();
-    });
-    $('stringChips').addEventListener('click', (e) => {
-      const btn = e.target.closest('.chip');
-      if (!btn) return;
-      const id = btn.dataset.id;
-      const i = settings.strings.indexOf(id);
-      if (i >= 0) { if (settings.strings.length > 1) settings.strings.splice(i, 1); } else settings.strings.push(id);
-      settings.strings.sort((a, b) => 'GDAE'.indexOf(a) - 'GDAE'.indexOf(b));
-      saveSettings();
-      updateSetupState();
-    });
     const changed = () => { saveSettings(); updateSetupState(); };
+
+    $('categoryList').addEventListener('click', (e) => {
+      const chip = e.target.closest('.ichip');
+      if (!chip) return;
+      const list = picked(chip.dataset.sub).slice();
+      const i = list.indexOf(chip.dataset.id);
+      if (i >= 0) list.splice(i, 1); else list.push(chip.dataset.id);
+      // Keep picks in the order the chips are shown.
+      const order = allChips(chip.dataset.sub);
+      settings.sel[chip.dataset.sub] = list.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+      changed();
+    });
+    // "Select all" turns a whole subcategory on or off.
+    $('categoryList').addEventListener('change', (e) => {
+      const box = e.target.closest('.selall');
+      if (!box) return;
+      settings.sel[box.dataset.sub] = box.checked ? allChips(box.dataset.sub) : [];
+      changed();
+    });
+
     $('pitchMode').addEventListener('click', (e) => {
       const b = e.target.closest('button');
       if (!b) return;
@@ -216,14 +272,12 @@
     });
 
     $('selectAll').addEventListener('click', () => {
-      settings.categories = Content.CATEGORIES.map((c) => c.id);
-      saveSettings();
-      updateSetupState();
+      Content.SUBCATS.forEach((sc) => { settings.sel[sc.id] = allChips(sc.id); });
+      changed();
     });
     $('selectNone').addEventListener('click', () => {
-      settings.categories = [];
-      saveSettings();
-      updateSetupState();
+      Content.SUBCATS.forEach((sc) => { settings.sel[sc.id] = []; });
+      changed();
     });
 
     const tempo = $('tempo');
@@ -253,7 +307,7 @@
     $('rounds').addEventListener('change', updateSpeed);
     tempo.addEventListener('input', updateSpeed);
 
-    ['speedUp', 'showAnswers', 'memory'].forEach((key) => {
+    ['speedUp', 'showAnswers', 'memory', 'clap'].forEach((key) => {
       const el = $(key);
       el.checked = !!settings[key];
       el.addEventListener('change', () => { settings[key] = el.checked; saveSettings(); });
@@ -276,19 +330,25 @@
   /* ============================ card preview ============================ */
 
   function openPreview() {
-    const cats = selectedCats().length ? selectedCats() : Content.CATEGORIES;
+    const subs = activeSubs().length ? activeSubs() : Content.SUBCATS;
     let html = '';
-    cats.forEach((cat) => {
-      let items;
-      if (cat.make) {
-        items = [];
-        for (let i = 0; i < 6; i++) items.push(cat.make(settings, Math.random));
-      } else {
-        items = cat.pool(settings);
+    subs.forEach((sc) => {
+      const cat = Content.CATEGORIES.find((c) => c.id === sc.cat);
+      const title = cat.name + ' · ' + sc.name;
+      if (sc.rhythm) {
+        const meters = picked(sc.id).length ? picked(sc.id) : Content.METER_IDS;
+        meters.forEach((m) => {
+          const items = [];
+          for (let i = 0; i < 4; i++) items.push(Content.rhythmItem(m, settings.rhythmLevel, Math.random));
+          html += '<h3>' + title + ': ' + m + '</h3><div class="preview-grid wide">' +
+            items.map((it) => '<div class="pcard">' + it.svg + '<b>' + it.say + '</b></div>').join('') + '</div>';
+        });
+        return;
       }
-      html += '<h3>' + cat.name + '</h3><div class="preview-grid' + (cat.rhythm ? ' wide' : '') + '">' +
-        items.map((it) => '<div class="pcard">' + it.svg + '<b>' + it.say + '</b>' +
-          (cat.rhythm ? '' : '<span>' + it.detail + '</span>') + '</div>').join('') + '</div>';
+      const sel = picked(sc.id).length ? picked(sc.id) : allChips(sc.id);
+      const items = sc.pool(sel, settings);
+      html += '<h3>' + title + '</h3><div class="preview-grid">' +
+        items.map((it) => '<div class="pcard">' + it.svg + '<b>' + it.say + '</b><span>' + it.detail + '</span></div>').join('') + '</div>';
     });
     $('previewBody').innerHTML = html;
     $('preview').classList.remove('hidden');
@@ -316,14 +376,13 @@
     wake: null
   };
 
-  // Rhythm categories are a measure per card, so they get rounds of their own.
+  // Rhythm cards are a measure each, so they get rounds of their own.
   function buildGroups() {
-    const cats = selectedCats();
+    const subs = activeSubs();
     const groups = [];
-    const singles = cats.filter((c) => c.kind === 'single');
-    if (singles.length) groups.push({ cats: singles, meter: 4, beats: 1 });
-    cats.filter((c) => c.kind === 'meter3').forEach((c) => groups.push({ cats: [c], meter: 3, beats: 3 }));
-    cats.filter((c) => c.kind === 'meter4').forEach((c) => groups.push({ cats: [c], meter: 4, beats: 4 }));
+    const singles = subs.filter((sc) => !sc.rhythm);
+    if (singles.length) groups.push({ subs: singles });
+    if (picked('meters').length) groups.push({ rhythm: true, meters: picked('meters') });
     return groups;
   }
 
@@ -344,16 +403,22 @@
     return LEVEL_BY_ROUND[roundIdx] || 'random';
   }
 
-  function pickFrom(group) {
-    const cat = group.cats[Math.floor(Math.random() * group.cats.length)];
-    return Content.pick(cat, settings, Math.random);
+  // A function that draws one random card for a round.
+  function cardPicker(group, meterId) {
+    if (group.rhythm) return () => Content.rhythmItem(meterId, settings.rhythmLevel, Math.random);
+    // Build each subcategory's cards once per round, then pick a subcategory, then a card.
+    const pools = group.subs.map((sc) => sc.pool(picked(sc.id), settings)).filter((p) => p.length);
+    return () => {
+      const pool = pools[Math.floor(Math.random() * pools.length)];
+      return pool[Math.floor(Math.random() * pool.length)];
+    };
   }
 
-  function randomItems(group) {
+  function randomItems(pick) {
     const items = [];
     let guard = 0;
     while (items.length < CARDS_PER_ROUND && guard++ < 200) {
-      const item = pickFrom(group);
+      const item = pick();
       const n = items.length;
       // Repeats happen, but not three of the same card in a row.
       if (n >= 2 && items[n - 1].id === item.id && items[n - 2].id === item.id) continue;
@@ -362,8 +427,8 @@
     return items;
   }
 
-  function makeItems(group, level) {
-    if (level === 'random') return randomItems(group);
+  function makeItems(pick, level) {
+    if (level === 'random') return randomItems(pick);
     // A different pattern from last round when possible.
     const choices = PATTERNS[level].filter((p) => p !== game.lastPattern);
     const pattern = choices[Math.floor(Math.random() * choices.length)];
@@ -373,10 +438,10 @@
     const used = new Set();
     pattern.split('').forEach((letter) => {
       if (chosen[letter]) return;
-      let item = pickFrom(group);
+      let item = pick();
       // Each letter is a card with a different answer (G3 and G4 would both be "G"),
       // unless the pool is too small to allow it.
-      for (let tries = 0; used.has(item.say) && tries < 60; tries++) item = pickFrom(group);
+      for (let tries = 0; used.has(item.say) && tries < 60; tries++) item = pick();
       used.add(item.say);
       chosen[letter] = item;
     });
@@ -399,18 +464,30 @@
     const n = settings.rounds > 0 ? Math.min(settings.rounds, 6) : 6;
     const list = [];
     for (let i = 0; i < n; i++) list.push(bpmFor(i));
-    const more = settings.rounds === 0 || settings.rounds > n ? ' \u2192 \u2026' : '';
-    $('speedHint').textContent = on ? list.join(' \u2192 ') + more + ' BPM (tops out at ' + MAX_BPM + ')' : 'Same tempo every round';
+    const more = settings.rounds === 0 || settings.rounds > n ? ' → …' : '';
+    $('speedHint').textContent = on ? list.join(' → ') + more + ' BPM (tops out at ' + MAX_BPM + ')' : 'Same tempo every round';
   }
 
   /*
    * A round is a list of beats. Every section is a whole number of bars:
    *   count-in (first round / after a restart) → reveal (one card per beat)
-   *   → say (one card per beat, or per measure for rhythms) → answers or a short break.
+   *   → say (one card per beat, or one measure per rhythm card) → answers or a short break.
+   * Each beat has a length relative to the tempo's beat (7/8's last beat is 1.5) and
+   * a number of divisions (2, or 3 for a dotted-quarter beat).
    */
   function buildPlan(roundIdx, countIn) {
     const group = game.groups[roundIdx % game.groups.length];
-    const m = group.meter;
+    let meterId = null, lens = [1, 1, 1, 1], subs = [2, 2, 2, 2], base = 12;
+    if (group.rhythm) {
+      // Several time signatures take turns, one per rhythm round.
+      const nth = Math.floor(roundIdx / game.groups.length);
+      meterId = group.meters[nth % group.meters.length];
+      const M = Content.METERS[meterId];
+      base = M.beats[0];
+      lens = M.beats.map((l) => l / base);
+      subs = M.beats.map((l) => (l % 18 === 0 ? 3 : 2));
+    }
+    const m = lens.length;
     const beats = [];
     if (countIn) for (let i = 0; i < m; i++) beats.push({ phase: 'count', n: i + 1 });
 
@@ -418,16 +495,21 @@
     for (let i = 0; i < revealLen; i++) {
       beats.push({ phase: 'reveal', reveal: i < CARDS_PER_ROUND ? i : null, fill: i === revealLen - 1 });
     }
+    const perCard = group.rhythm ? m : 1;
     for (let k = 0; k < CARDS_PER_ROUND; k++) {
-      for (let b = 0; b < group.beats; b++) beats.push({ phase: 'say', card: k, first: b === 0, crash: k === 0 && b === 0 });
+      for (let b = 0; b < perCard; b++) beats.push({ phase: 'say', card: k, first: b === 0, crash: k === 0 && b === 0 });
     }
     const tail = settings.showAnswers ? 2 * m : m;
     for (let i = 0; i < tail; i++) beats.push({ phase: settings.showAnswers ? 'review' : 'break' });
     if (!isLastRound(roundIdx)) beats[beats.length - 1].fill = true;
-    beats.forEach((b, i) => { b.barPos = i % m; });
+    beats.forEach((b, i) => { b.barPos = i % m; b.len = lens[b.barPos]; b.sub = subs[b.barPos]; });
 
     const level = levelFor(roundIdx);
-    return { roundIdx: roundIdx, group: group, meter: m, level: level, items: makeItems(group, level), beats: beats, bpm: bpmFor(roundIdx) };
+    return {
+      roundIdx: roundIdx, group: group, rhythm: !!group.rhythm, meterId: meterId, base: base, meter: m,
+      cardLen: group.rhythm ? lens.reduce((a, b) => a + b, 0) : 1,
+      level: level, items: makeItems(cardPicker(group, meterId), level), beats: beats, bpm: bpmFor(roundIdx)
+    };
   }
 
   /* ============================ scheduler ============================ */
@@ -453,13 +535,20 @@
       const b = plan.beats[game.beatIdx];
       const t = game.nextTime;
       const spb = 60 / plan.bpm;
+      const beatDur = spb * b.len;
       engine.playBeat({
-        t: t, spb: spb, barPos: b.barPos, meter: plan.meter, bar: game.bar, phase: b.phase,
+        t: t, spb: beatDur, sub: b.sub, barPos: b.barPos, meter: plan.meter, bar: game.bar, phase: b.phase,
         fill: b.fill, crash: b.crash, bell: b.reveal != null ? b.reveal : null
       });
+      // Clap each note of the rhythm card as it lights up.
+      if (b.phase === 'say' && b.first && plan.rhythm && settings.clap) {
+        const item = plan.items[b.card];
+        const perUnit = spb / plan.base;
+        (item.onsets || []).forEach((u) => engine.clap(t + u * perUnit));
+      }
       if (b.barPos === plan.meter - 1) game.bar++;
       queue(t, () => applyBeat(plan, b, spb));
-      game.nextTime += spb;
+      game.nextTime += beatDur;
       game.beatIdx++;
     }
   }
@@ -494,8 +583,7 @@
 
   function renderRound(plan) {
     const grid = $('grid');
-    const wide = plan.group.beats > 1;
-    grid.className = 'grid' + (wide ? ' wide' : '') + (game.forceAnswers ? ' answers' : '');
+    grid.className = 'grid' + (plan.rhythm ? ' wide' : '') + (game.forceAnswers ? ' answers' : '');
     game.inReview = false;
     grid.innerHTML = plan.items.map((it, i) =>
       '<div class="card" data-i="' + i + '"><div class="num">' + (i + 1) + '</div>' +
@@ -506,9 +594,11 @@
     game.cards = Array.from(grid.children);
 
     const total = settings.rounds > 0 ? ' of ' + settings.rounds : '';
-    $('roundLabel').innerHTML = 'Round ' + (plan.roundIdx + 1) + total + '<span class="level">' + LEVEL_NAMES[plan.level] + '</span>';
+    $('roundLabel').innerHTML = 'Round ' + (plan.roundIdx + 1) + total + '<span class="level">' +
+      LEVEL_NAMES[plan.level] + (plan.meterId ? ' · ' + plan.meterId : '') + '</span>';
     $('bpmLabel').textContent = plan.bpm + ' BPM';
-    $('beatDots').innerHTML = Array.from({ length: plan.meter }, (_, i) => '<i' + (i === 0 ? ' class="down"' : '') + '></i>').join('');
+    $('beatDots').innerHTML = plan.beats.slice(0, plan.meter).map((b, i) =>
+      '<i class="' + (i === 0 ? 'down' : '') + (b.len > 1 ? ' long' : '') + '"></i>').join('');
     setPhase(plan.beats[0].phase === 'count' ? 'Get ready' : 'Watch', plan.beats[0].phase === 'count' ? '' : 'watch');
   }
 
@@ -545,7 +635,7 @@
       });
       const card = game.cards[b.card];
       if (card) {
-        card.style.setProperty('--dur', (plan.group.beats * spb).toFixed(3) + 's');
+        card.style.setProperty('--dur', (plan.cardLen * spb).toFixed(3) + 's');
         card.classList.add('revealed', 'active');
       }
       return;
@@ -571,7 +661,7 @@
   }
 
   function startGame() {
-    if (!selectedCats().length) return;
+    if (!activeSubs().length) return;
     closePreview();
     engine.init();
     engine.setVolume(settings.volume);
@@ -731,7 +821,7 @@
 
     document.addEventListener('keydown', (e) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const tag = e.target && e.target.tagName;
+      const target = e.target || {};
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
 
       if (!$('preview').classList.contains('hidden')) {
@@ -740,7 +830,8 @@
       }
 
       if (!game.started) {
-        if (key === ' ' && tag !== 'SELECT') {
+        // Space starts, except where it already means something (menus, checkboxes).
+        if (key === ' ' && target.tagName !== 'SELECT' && !(target.tagName === 'INPUT' && target.type === 'checkbox')) {
           e.preventDefault();
           startGame();
         }
@@ -758,7 +849,7 @@
   }
 
   // Load the music font now so the first cards don't flash blank.
-  if (document.fonts && document.fonts.load) document.fonts.load('40px "SayItOnBeat Music"', '\uE050').catch(() => {});
+  if (document.fonts && document.fonts.load) document.fonts.load('40px "SayItOnBeat Music"', '').catch(() => {});
 
   renderCategories();
   bindSetup();

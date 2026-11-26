@@ -40,7 +40,17 @@
     articAccentAbove: [0xE4A0, 1.44], articStaccatoAbove: [0xE4A2, 0.312], articTenutoAbove: [0xE4A4, 1.264],
     fermataAbove: [0xE4C0, 2.488],
     segno: [0xE047, 2.616], coda: [0xE048, 2.98],
-    timeSig3: [0xE083, 1.516], timeSig4: [0xE084, 1.828],
+    timeSig0: [0xE080, 1.616], timeSig1: [0xE081, 1.404], timeSig2: [0xE082, 1.568], timeSig3: [0xE083, 1.516],
+    timeSig4: [0xE084, 1.828], timeSig5: [0xE085, 1.508], timeSig6: [0xE086, 1.608], timeSig7: [0xE087, 1.524],
+    timeSig8: [0xE088, 1.632], timeSig9: [0xE089, 1.608],
+    noteheadXBlack: [0xE0A9, 1.3],
+    articMarcatoAbove: [0xE4AC, 1.18], articStaccatissimoWedgeAbove: [0xE4A8, 0.488],
+    articAccentStaccatoAbove: [0xE4B0, 1.44], articTenutoStaccatoAbove: [0xE4B2, 1.264], articTenutoAccentAbove: [0xE4B4, 1.44],
+    fermataShortAbove: [0xE4C4, 2.568], fermataLongAbove: [0xE4C6, 2.492], caesura: [0xE4D1, 1.52],
+    pluckedSnapPizzicatoAbove: [0xE631, 1.076], pluckedBuzzPizzicato: [0xE632, 1.556], stringsHarmonic: [0xE614, 0.724],
+    tremolo3: [0xE222, 0.58],
+    accidentalQuarterToneSharpStein: [0xE282, 0.72], accidentalNarrowReversedFlat: [0xE284, 0.64],
+    dynamicSforzandoPiano: [0xE537, 3.256],
     tuplet3: [0xE883, 1.116],
     dynamicPiano: [0xE520, 1.268], dynamicMezzo: [0xE521, 1.496], dynamicForte: [0xE522, 1.336],
     dynamicSforzando: [0xE524, 0.832], dynamicZ: [0xE525, 0.956],
@@ -50,8 +60,11 @@
   };
 
   // Stem attachment points on the noteheads (staff spaces, y up).
-  const STEM_UP_SE = [1.3, 0.16];
-  const STEM_DOWN_NW = [0, -0.168];
+  const STEM_ANCHORS = {
+    noteheadBlack: { up: [1.3, 0.16], down: [0, -0.168] },
+    noteheadHalf: { up: [1.3, 0.16], down: [0, -0.168] },
+    noteheadXBlack: { up: [1.3, 0.424], down: [0, -0.424] }
+  };
 
   const r = (n) => Math.round(n * 100) / 100;
   const width = (name, size) => GLYPHS[name][1] * SP * ((size || FONT_SIZE) / FONT_SIZE);
@@ -159,7 +172,8 @@
 
   /* ---------- accidentals (left edge at x, centred on the note's line or space) ---------- */
 
-  const ACCIDENTAL = { '#': 'accidentalSharp', b: 'accidentalFlat', n: 'accidentalNatural', x: 'accidentalDoubleSharp' };
+  const ACCIDENTAL = { '#': 'accidentalSharp', b: 'accidentalFlat', n: 'accidentalNatural', x: 'accidentalDoubleSharp',
+    qs: 'accidentalQuarterToneSharpStein', qf: 'accidentalNarrowReversedFlat' };
 
   function accidental(acc, x, y, size) {
     return ACCIDENTAL[acc] ? glyph(ACCIDENTAL[acc], x, y, { size: size }) : '';
@@ -179,13 +193,14 @@
 
   /*
    * A single note centred on x. opts: { dur: 'w'|'h'|'q'|'8'|'16', up: bool, dots: n,
-   *   stemLen, noFlag: bool (for beamed notes), dotUp: bool (note on a line) }
+   *   stemLen, noFlag: bool (for beamed notes), dotUp: bool (note on a line), head: notehead glyph }
    * Returns { svg, stemX, stemEnd } where stemX is the centre of the stem.
    */
   function note(x, y, opts) {
     const dur = opts.dur;
     const up = opts.up !== false;
-    const headName = HEAD[dur] || 'noteheadBlack';
+    const headName = opts.head || HEAD[dur] || 'noteheadBlack';
+    const anchors = STEM_ANCHORS[headName] || STEM_ANCHORS.noteheadBlack;
     const left = x - width(headName) / 2;
     let s = glyph(headName, left, y);
     let stemX = null, stemEnd = null;
@@ -193,13 +208,13 @@
       const stemW = ENGRAVING.stem * SP * 1.3;
       const len = (opts.stemLen || 35) + (dur === '16' && !opts.noFlag ? 3 : 0);
       if (up) {
-        stemX = left + STEM_UP_SE[0] * SP - stemW / 2;
+        stemX = left + anchors.up[0] * SP - stemW / 2;
         stemEnd = y - len;
-        s += line(stemX, y - STEM_UP_SE[1] * SP, stemX, stemEnd, stemW);
+        s += line(stemX, y - anchors.up[1] * SP, stemX, stemEnd, stemW);
       } else {
-        stemX = left + STEM_DOWN_NW[0] * SP + stemW / 2;
+        stemX = left + anchors.down[0] * SP + stemW / 2;
         stemEnd = y + len;
-        s += line(stemX, y - STEM_DOWN_NW[1] * SP, stemX, stemEnd, stemW);
+        s += line(stemX, y - anchors.down[1] * SP, stemX, stemEnd, stemW);
       }
       if (!opts.noFlag && FLAGS[dur]) s += glyph(FLAGS[dur][up ? 0 : 1], stemX - stemW / 2, stemEnd);
     }
@@ -222,11 +237,13 @@
 
   const REST = { w: 'restWhole', h: 'restHalf', q: 'restQuarter', '8': 'rest8th' };
 
-  function rest(kind, x, mid) {
+  function rest(kind, x, mid, dots) {
     const name = REST[kind];
     if (!name) return '';
     // The whole rest hangs from the line above the middle; the others sit on the middle line.
-    return glyph(name, x - width(name) / 2, kind === 'w' ? mid - SP : mid);
+    let s = glyph(name, x - width(name) / 2, kind === 'w' ? mid - SP : mid);
+    if (dots) s += glyph('augmentationDot', x + width(name) / 2 + 3, mid - HALF);
+    return s;
   }
 
   /* ---------- articulations and other symbols ---------- */
@@ -242,17 +259,24 @@
   function fermata(cx, baseY) { return above('fermataAbove', cx, baseY); }
   function coda(cx, baseY, size) { return above('coda', cx, baseY, size); }
   function tuplet3(cx, baseY) { return above('tuplet3', cx, baseY); }
+  // Tremolo slashes centred on (cx, cy), usually across a stem.
+  function tremolo(cx, cy) { return glyph('tremolo3', cx, cy); }
 
-  // A time-signature digit, centred on cx and on the line at cy.
-  function timeSigDigit(d, cx, cy) {
-    const name = 'timeSig' + d;
-    return glyph(name, cx - width(name) / 2, cy);
+  // A time-signature number (one or two digits), centred on cx and on the line at cy.
+  function timeSigNumber(n, cx, cy, size) {
+    const names = String(n).split('').map((d) => 'timeSig' + d);
+    return glyph(names, cx, cy, { size: size, anchor: 'middle' });
   }
+  function timeSigNumberWidth(n) {
+    return String(n).split('').reduce((w, d) => w + width('timeSig' + d), 0);
+  }
+  // A whole time signature: the top number above the middle line, the bottom number below.
+  function timeSig(top, bottom, cx, mid) { return timeSigNumber(top, cx, mid - SP) + timeSigNumber(bottom, cx, mid + SP); }
 
   // Dynamics, using Leland's ready-made combinations.
   const DYNAMICS = {
     pp: 'dynamicPP', p: 'dynamicPiano', mp: 'dynamicMP', mf: 'dynamicMF', f: 'dynamicForte',
-    ff: 'dynamicFF', fp: 'dynamicFortePiano', sfz: 'dynamicSforzato'
+    ff: 'dynamicFF', fp: 'dynamicFortePiano', sfz: 'dynamicSforzato', sfp: 'dynamicSforzandoPiano'
   };
   function dynamic(str, cx, baseY, size) {
     return glyph(DYNAMICS[str], cx, baseY, { size: size, anchor: 'middle' });
@@ -299,7 +323,8 @@
     note: note, notehead: notehead, beam: beam, rest: rest,
     staffPos: staffPos, posToY: posToY, diatonic: diatonic,
     downBow: downBow, upBow: upBow, staccato: staccato, accent: accent, tenuto: tenuto,
-    fermata: fermata, coda: coda, tuplet3: tuplet3, timeSigDigit: timeSigDigit, dynamic: dynamic,
+    fermata: fermata, coda: coda, tuplet3: tuplet3, tremolo: tremolo, above: above,
+    timeSig: timeSig, timeSigNumber: timeSigNumber, timeSigNumberWidth: timeSigNumberWidth, dynamic: dynamic,
     curve: curve, hairpin: hairpin,
     endRepeat: endRepeat, startRepeat: startRepeat, finalBarline: finalBarline,
     strokePath: strokePath, fillPath: fillPath

@@ -24,20 +24,15 @@
           <button type="button" id="selectNone">Clear</button>
         </div>
       </div>
-      <div id="categoryList" class="category-list"></div>
       <p id="categoryHint" class="hint"></p>
+      <div id="categoryList" class="category-list"></div>
     </section>
 
     <section class="panel options">
       <h2>Options</h2>
 
-      <div class="option" id="stringsOption">
-        <label>Strings <small>for note names</small></label>
-        <div class="chips" id="stringChips"></div>
-      </div>
-
-      <div class="option" id="pitchOption">
-        <label>Diatonic note names</label>
+      <!-- Moved into their subcategories by game.js -->
+      <div class="sub-options" id="pitchOption">
         <div class="seg" id="pitchMode" role="group" aria-label="How to choose the notes">
           <button type="button" data-mode="scale">Scale</button>
           <button type="button" data-mode="chromatic">Chromatic</button>
@@ -66,12 +61,12 @@
         <p class="sub-hint" id="pitchHint"></p>
       </div>
 
-      <div class="option" id="rhythmOption">
-        <label for="rhythmLevel">Rhythm patterns</label>
-        <select id="rhythmLevel">
-          <option value="basic">Basic: quarters, eighths, halves, rests</option>
-          <option value="advanced">Advanced: adds sixteenths, triplets, dotted quarters</option>
+      <div class="sub-options" id="rhythmOption">
+        <select id="rhythmLevel" aria-label="Rhythm patterns">
+          <option value="basic">Basic rhythms: quarters, eighths, halves, rests</option>
+          <option value="advanced">Advanced rhythms: adds sixteenths, triplets, dotted rhythms</option>
         </select>
+        <label class="toggle"><input type="checkbox" id="clap"><span>Clap the rhythm during &ldquo;Say it!&rdquo;</span></label>
       </div>
 
       <div class="option">
@@ -92,7 +87,7 @@
       <div class="option">
         <label for="cardOrder">Card order</label>
         <select id="cardOrder">
-          <option value="patterns">Patterns first: easy, easy, medium, hard, then random</option>
+          <option value="patterns">Progressively more random</option>
           <option value="random">Random every round</option>
         </select>
       </div>

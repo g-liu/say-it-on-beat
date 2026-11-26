@@ -1,9 +1,12 @@
 /*
- * content.js — the categories and the cards in them.
+ * content.js — the categories, their subcategories, and the cards in them.
  *
  * Every card is { id, svg, say, detail }:
  *   say    — what the class says out loud (shown when answers are revealed)
  *   detail — a short teaching note shown under it
+ *
+ * Each subcategory has chips (the things a teacher can pick) and a pool(selectedChipIds, settings)
+ * that returns the cards for the picked chips.
  */
 (function (global) {
   'use strict';
@@ -16,17 +19,116 @@
   const TOP = 40;                 // top staff line
   const MID = TOP + 20;           // middle staff line
 
-  const SHARP = '\u266F', FLAT = '\u266D', DOUBLE_SHARP = '\uD834\uDD2A';
+  const SHARP = '♯', FLAT = '♭', DOUBLE_SHARP = '𝄪';
   const ACC_SYMBOL = { '#': SHARP, b: FLAT, x: DOUBLE_SHARP };
   const ACC_WORD = { '#': ' sharp', b: ' flat', x: ' double sharp' };
   // 'F#' -> 'F♯'. Names are a letter plus an optional accidental: # b x (double sharp).
   const pretty = (name) => name[0] + (ACC_SYMBOL[name.slice(1)] || name.slice(1));
+  const sayName = (name) => name[0] + (ACC_WORD[name.slice(1)] || '');
 
   function card(body) { return N.svg(CARD_VB, body); }
   function staff5() { return N.staff(3, 127, TOP); }
 
   /* =========================================================
-   * Note names on the violin (first / "home" position)
+   * Pitch helpers
+   * ========================================================= */
+
+  const LETTERS = 'CDEFGAB';
+  const LETTER_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const NATURAL_PC = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' };
+  const SHARP_PC = { 1: 'C#', 3: 'D#', 6: 'F#', 8: 'G#', 10: 'A#' };
+  const FLAT_PC = { 1: 'Db', 3: 'Eb', 6: 'Gb', 8: 'Ab', 10: 'Bb' };
+  const accValue = (name) => ({ '#': 1, b: -1, x: 2 }[name.slice(1)] || 0);
+  const toMidi = (name, octave) => (octave + 1) * 12 + LETTER_PC[name[0]] + accValue(name);
+  // The octave number a spelling takes for a given pitch (so B#3 = C4, Cb4 = B3).
+  const octaveFor = (name, midi) => Math.round((midi - LETTER_PC[name[0]] - accValue(name)) / 12) - 1;
+  const label = (name, octave) => pretty(name) + octave;
+
+  // Key signatures, around the circle of fifths: C / A minor, then sharp keys, then flat keys.
+  const KEY_PAIRS = [
+    { n: 0, major: 'C', minor: 'A' },
+    { n: 1, type: '#', major: 'G', minor: 'E' },
+    { n: 2, type: '#', major: 'D', minor: 'B' },
+    { n: 3, type: '#', major: 'A', minor: 'F#' },
+    { n: 4, type: '#', major: 'E', minor: 'C#' },
+    { n: 5, type: '#', major: 'B', minor: 'G#' },
+    { n: 6, type: '#', major: 'F#', minor: 'D#' },
+    { n: 1, type: 'b', major: 'F', minor: 'D' },
+    { n: 2, type: 'b', major: 'Bb', minor: 'G' },
+    { n: 3, type: 'b', major: 'Eb', minor: 'C' },
+    { n: 4, type: 'b', major: 'Ab', minor: 'F' },
+    { n: 5, type: 'b', major: 'Db', minor: 'Bb' },
+    { n: 6, type: 'b', major: 'Gb', minor: 'Eb' }
+  ];
+  const keyChipLabel = (k) => pretty(k.major) + (k.n ? ' · ' + k.n + (k.type === '#' ? SHARP : FLAT) : '');
+
+  const SHARP_POS = [8, 5, 9, 6, 3, 7, 4];   // F C G D A E B (treble staff positions)
+  const FLAT_POS = [4, 7, 3, 6, 2, 5, 1];    // B E A D G C F
+  const KEYSIG_X = 38;
+
+  // The accidentals of a key signature after a treble clef; returns { svg, end }.
+  function keySignature(type, count, top) {
+    if (!count) return { svg: '', end: KEYSIG_X };
+    const positions = type === '#' ? SHARP_POS : FLAT_POS;
+    const step = N.accidentalWidth(type) + 2;
+    let s = '';
+    for (let i = 0; i < count; i++) s += N.accidental(type, KEYSIG_X + i * step, N.posToY(positions[i], top));
+    return { svg: s, end: KEYSIG_X + (count - 1) * step + N.accidentalWidth(type) };
+  }
+
+  /*
+   * One note on a treble staff. opts.key: { type, n } draws that key signature and no accidental
+   * on the note (it's already in the key).
+   */
+  function noteSvg(name, octave, opts) {
+    opts = opts || {};
+    const step = name[0];
+    const acc = opts.key ? '' : name.slice(1);
+    const pos = N.staffPos(step, octave, 'treble');
+    // Room needed above the note head: a flat reaches highest, then a sharp.
+    const clearance = acc === 'b' ? 18 : acc ? 13 : 6;
+    // Very high notes: slide the staff down (up to 17) so the ledger lines fit on the card.
+    const top = TOP + Math.min(17, Math.max(0, 13 - (N.posToY(pos, TOP) - clearance)));
+    const y = N.posToY(pos, top);
+    const sig = opts.key ? keySignature(opts.key.type, opts.key.n, top) : { svg: '', end: 0 };
+    const x = Math.max(88, sig.end + 18);
+    const width = Math.max(130, x + 20);
+    const up = pos < 4;
+    // Notes far above or below the staff get stems that reach the middle line.
+    const stemLen = Math.max(35, Math.abs(pos - 4) * N.HALF);
+    const n = N.note(x, y, { dur: 'q', up: up, stemLen: stemLen });
+    // A slightly taller frame than other cards, taller still for the very highest notes.
+    const vbTop = Math.min(NOTE_VB_TOP, Math.floor(y - clearance - 1));
+    return N.svg('0 ' + vbTop + ' ' + width + ' ' + (NOTE_VB_BOTTOM - vbTop),
+      N.staff(3, width - 3, top) + N.clef('treble', 6, top) + sig.svg + N.ledgers(x, pos, top) +
+      N.accidental(acc, x - N.width('noteheadBlack') / 2 - 2.5 - N.accidentalWidth(acc), y) + n.svg);
+  }
+
+  // Lowest MIDI note of a tonic at or above the violin's open G (G3 = 55).
+  function lowestTonic(tonic) {
+    let m = toMidi(tonic, 3);
+    if (m < 55) m += 12;
+    return m;
+  }
+
+  // The 7 spelled degrees of a scale: [{ name, semi, degree }] where semi counts up from the tonic.
+  function spellScale(tonic, steps) {
+    const li = LETTERS.indexOf(tonic[0]);
+    const tonicPc = LETTER_PC[tonic[0]] + accValue(tonic);
+    const out = [];
+    let semi = 0;
+    for (let d = 0; d < 7; d++) {
+      const letter = LETTERS[(li + d) % 7];
+      let diff = (((tonicPc + semi - LETTER_PC[letter]) % 12) + 12) % 12;
+      if (diff > 6) diff -= 12;
+      out.push({ name: letter + ({ 1: '#', '-1': 'b', 2: 'x' }[diff] || ''), semi: semi, degree: d + 1 });
+      semi += steps[d];
+    }
+    return out;
+  }
+
+  /* =========================================================
+   * Note names: home position on the violin
    * ========================================================= */
 
   const STRINGS = [
@@ -37,33 +139,6 @@
   ];
   // Semitones above the open string -> finger in first position.
   const FINGER = ['open', 'low 1st', '1st', 'low 2nd', 'high 2nd', '3rd', 'high 3rd', '4th'];
-  const NATURAL_PC = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' };
-  const SHARP_PC = { 1: 'C#', 3: 'D#', 6: 'F#', 8: 'G#', 10: 'A#' };
-  const FLAT_PC = { 1: 'Db', 3: 'Eb', 6: 'Gb', 8: 'Ab', 10: 'Bb' };
-
-  function noteSvg(name, octave) {
-    const step = name[0];
-    const acc = name.length > 1 ? name[1] : '';
-    const pos = N.staffPos(step, octave, 'treble');
-    // Room needed above the note head: a flat reaches highest, then a sharp.
-    const clearance = acc === 'b' ? 18 : acc ? 13 : 6;
-    // Very high notes: slide the staff down (up to 17) so the ledger lines fit on the card.
-    const top = TOP + Math.min(17, Math.max(0, 13 - (N.posToY(pos, TOP) - clearance)));
-    const y = N.posToY(pos, top);
-    const x = 88;
-    const up = pos < 4;
-    // Notes far above or below the staff get stems that reach the middle line.
-    const stemLen = Math.max(35, Math.abs(pos - 4) * N.HALF);
-    const n = N.note(x, y, { dur: 'q', up: up, stemLen: stemLen });
-    // A slightly taller frame than other cards, taller still for the very highest notes.
-    const vbTop = Math.min(NOTE_VB_TOP, Math.floor(y - clearance - 1));
-    return N.svg('0 ' + vbTop + ' 130 ' + (NOTE_VB_BOTTOM - vbTop),
-      N.staff(3, 127, top) + N.clef('treble', 6, top) + N.ledgers(x, pos, top) +
-      N.accidental(acc, x - N.width('noteheadBlack') / 2 - 2.5 - N.accidentalWidth(acc), y) + n.svg);
-  }
-
-  const sayName = (name) => name[0] + (ACC_WORD[name.slice(1)] || '');
-
   // Home position, high-2 pattern: G A B C · D E F# G · A B C# D · E F# G# A B
   const HOME_SEMIS = { G: [0, 2, 4, 5], D: [0, 2, 4, 5], A: [0, 2, 4, 5], E: [0, 2, 4, 5, 7] };
 
@@ -86,16 +161,8 @@
   }
 
   /* =========================================================
-   * Diatonic note names: a scale, chromatic in a range, or picked notes
+   * Note names: diatonic (a scale, chromatic in a range, or picked notes)
    * ========================================================= */
-
-  const LETTERS = 'CDEFGAB';
-  const LETTER_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-  const accValue = (name) => ({ '#': 1, b: -1, x: 2 }[name.slice(1)] || 0);
-  const toMidi = (name, octave) => (octave + 1) * 12 + LETTER_PC[name[0]] + accValue(name);
-  // The octave number a spelling takes for a given pitch (so B#3 = C4, Cb4 = B3).
-  const octaveFor = (name, midi) => Math.round((midi - LETTER_PC[name[0]] - accValue(name)) / 12) - 1;
-  const label = (name, octave) => pretty(name) + octave;
 
   const SCALE_TYPES = {
     major: { name: 'major', steps: [2, 2, 1, 2, 2, 2, 1] },
@@ -103,23 +170,6 @@
     harmonic: { name: 'harmonic minor', steps: [2, 1, 2, 2, 1, 3, 1] },
     melodic: { name: 'melodic minor', steps: [2, 1, 2, 2, 2, 2, 1], down: [2, 1, 2, 2, 1, 2, 2] }
   };
-  // Keys whose scales need no double sharps or flats; tonics start at or above the violin's open G.
-  // Around the circle of fifths: C / A minor, then the sharp keys, then the flat keys.
-  const KEY_PAIRS = [
-    { n: 0, major: 'C', minor: 'A' },
-    { n: 1, type: '#', major: 'G', minor: 'E' },
-    { n: 2, type: '#', major: 'D', minor: 'B' },
-    { n: 3, type: '#', major: 'A', minor: 'F#' },
-    { n: 4, type: '#', major: 'E', minor: 'C#' },
-    { n: 5, type: '#', major: 'B', minor: 'G#' },
-    { n: 6, type: '#', major: 'F#', minor: 'D#' },
-    { n: 1, type: 'b', major: 'F', minor: 'D' },
-    { n: 2, type: 'b', major: 'Bb', minor: 'G' },
-    { n: 3, type: 'b', major: 'Eb', minor: 'C' },
-    { n: 4, type: 'b', major: 'Ab', minor: 'F' },
-    { n: 5, type: 'b', major: 'Db', minor: 'Bb' },
-    { n: 6, type: 'b', major: 'Gb', minor: 'Eb' }
-  ];
   const MINOR_TYPES = ['natural', 'harmonic', 'melodic'];
   // One list for the scale menu: each major key followed by its relative minors.
   const SCALE_CHOICES = KEY_PAIRS.map((k) => ({
@@ -141,22 +191,6 @@
     ['Cb', 'Db', 'Eb', 'Fb', 'Gb', 'Ab', 'Bb']
   ];
 
-  // The 7 spelled degrees of a scale: [{ name, semi }] where semi counts up from the tonic.
-  function spellScale(tonic, steps) {
-    const li = LETTERS.indexOf(tonic[0]);
-    const tonicPc = LETTER_PC[tonic[0]] + accValue(tonic);
-    const out = [];
-    let semi = 0;
-    for (let d = 0; d < 7; d++) {
-      const letter = LETTERS[(li + d) % 7];
-      let diff = (((tonicPc + semi - LETTER_PC[letter]) % 12) + 12) % 12;
-      if (diff > 6) diff -= 12;
-      out.push({ name: letter + ({ 1: '#', '-1': 'b', 2: 'x' }[diff] || ''), semi: semi, degree: d + 1 });
-      semi += steps[d];
-    }
-    return out;
-  }
-
   function pitchItem(name, octave, extra) {
     return {
       id: 'pitch-' + name + octave,
@@ -169,9 +203,7 @@
   function scaleItems(s) {
     const type = SCALE_TYPES[s.scaleType] || SCALE_TYPES.major;
     const tonic = s.scaleKey;
-    // Lowest tonic at or above open G (G3).
-    let start = toMidi(tonic, 3);
-    if (start < 55) start += 12;
+    const start = lowestTonic(tonic);
     const octaves = s.scaleOctaves === 2 ? 2 : 1;
     const forms = [{ degrees: spellScale(tonic, type.steps), note: type.down ? 'raised, going up' : '' }];
     if (type.down) forms.push({ degrees: spellScale(tonic, type.down), note: 'natural, coming down' });
@@ -235,7 +267,7 @@
     return items.length ? items : chromaticItems(s);
   }
 
-  // A one-line description of the current choice, for the category tile.
+  // A one-line description of the current choice.
   function pitchSummary(s) {
     if (s.pitchMode === 'chromatic') return 'Chromatic, ' + s.rangeLow + ' to ' + s.rangeHigh;
     if (s.pitchMode === 'pick') {
@@ -273,6 +305,14 @@
     return s;
   }
 
+  // Dotted eighth beamed to a sixteenth: full beam plus a short stub on the sixteenth.
+  function dottedEighthSixteenth() {
+    const a = N.note(40, A4, { dur: '8', up: true, noFlag: true, dots: 1 });
+    const b = N.note(86, A4, { dur: '16', up: true, noFlag: true });
+    const top = A4 - 35;
+    return a.svg + b.svg + N.beam(a.stemX, b.stemX, top, 0) + N.rect(b.stemX - 9.6, top + 7.5, 10.25, 5);
+  }
+
   const BASIC_VALUES = [
     { id: 'v-w', svg: valueCard('w'), say: 'Whole note', detail: '4 beats' },
     { id: 'v-h', svg: valueCard('h'), say: 'Half note', detail: '2 beats' },
@@ -298,50 +338,45 @@
       say: 'Dotted eighth sixteenth', detail: '1 beat · long-short' }
   ];
 
-  // Dotted eighth beamed to a sixteenth: full beam plus a short stub on the sixteenth.
-  function dottedEighthSixteenth() {
-    const a = N.note(40, A4, { dur: '8', up: true, noFlag: true, dots: 1 });
-    const b = N.note(86, A4, { dur: '16', up: true, noFlag: true });
-    const top = A4 - 35;
-    return a.svg + b.svg + N.beam(a.stemX, b.stemX, top, 0) + N.rect(b.stemX - 9.6, top + 7.5, 10.25, 5);
-  }
-
   /* =========================================================
-   * Key signatures (treble clef)
+   * Key signatures and scale degrees
    * ========================================================= */
 
-  const SHARP_POS = [8, 5, 9, 6, 3, 7, 4];   // F C G D A E B
-  const FLAT_POS = [4, 7, 3, 6, 2, 5, 1];    // B E A D G C F
-  const KEYS = [
-    { key: 'C', minor: 'A', n: 0, type: '' },
-    { key: 'G', minor: 'E', n: 1, type: '#' },
-    { key: 'D', minor: 'B', n: 2, type: '#' },
-    { key: 'A', minor: 'F#', n: 3, type: '#' },
-    { key: 'E', minor: 'C#', n: 4, type: '#' },
-    { key: 'F', minor: 'D', n: 1, type: 'b' },
-    { key: 'Bb', minor: 'G', n: 2, type: 'b' },
-    { key: 'Eb', minor: 'C', n: 3, type: 'b' },
-    { key: 'Ab', minor: 'F', n: 4, type: 'b' }
-  ];
-
-  function keySigSvg(type, count) {
-    let s = staff5() + N.clef('treble', 6, TOP);
-    const positions = type === '#' ? SHARP_POS : FLAT_POS;
-    const step = N.accidentalWidth(type) + 2;
-    for (let i = 0; i < count; i++) s += N.accidental(type, 38 + i * step, N.posToY(positions[i], TOP));
-    return card(s);
-  }
-
-  const KEY_ITEMS = KEYS.map((k) => {
+  const KEY_ITEMS = KEY_PAIRS.map((k) => {
     const accs = k.n === 0 ? 'no sharps or flats'
       : k.n + ' ' + (k.type === '#' ? 'sharp' : 'flat') + (k.n > 1 ? 's' : '');
     return {
-      id: 'key-' + k.key,
-      svg: keySigSvg(k.type, k.n),
-      say: pretty(k.key) + ' major',
+      id: 'key-' + k.major,
+      chip: keyChipLabel(k),
+      svg: card(staff5() + N.clef('treble', 6, TOP) + keySignature(k.type, k.n, TOP).svg),
+      say: pretty(k.major) + ' major',
       detail: accs + ' · relative minor: ' + pretty(k.minor) + ' minor'
     };
   });
+
+  // Scale degrees are shown as a number with a circumflex accent over it (styled in CSS).
+  const degreeMark = (d) => '<span class="deg">' + d + '</span>';
+  const DEGREE_NAMES = ['tonic', 'supertonic', 'mediant', 'subdominant', 'dominant', 'submediant', 'leading tone'];
+
+  // Each note of the major scale (one octave, tonic to tonic) with the key signature.
+  function degreePool(keys) {
+    const out = [];
+    KEY_PAIRS.filter((k) => keys.indexOf(k.major) >= 0).forEach((k) => {
+      const start = lowestTonic(k.major);
+      const degrees = spellScale(k.major, SCALE_TYPES.major.steps);
+      degrees.concat([{ name: k.major, semi: 12, degree: 1 }]).forEach((d) => {
+        const midi = start + d.semi;
+        const octave = octaveFor(d.name, midi);
+        out.push({
+          id: 'deg-' + k.major + '-' + d.name + octave,
+          svg: noteSvg(d.name, octave, { key: k }),
+          say: degreeMark(d.degree),
+          detail: label(d.name, octave) + ' in ' + pretty(k.major) + ' major · ' + DEGREE_NAMES[d.degree - 1]
+        });
+      });
+    });
+    return out;
+  }
 
   /* =========================================================
    * Clefs
@@ -359,29 +394,35 @@
    * ========================================================= */
 
   function dynCard(str) { return card(N.dynamic(str, 65, 72, 80)); }
+  // A small picture of a dynamic for its chip.
+  function dynChip(str) {
+    return '<svg class="chip-art" viewBox="-36 -24 72 34" aria-hidden="true">' + N.dynamic(str, 0, 0, 40) + '</svg>';
+  }
+  function hairpinChip(opening) {
+    return '<svg class="chip-art" viewBox="0 -9 60 18" aria-hidden="true">' + N.hairpin(4, 56, 0, opening) + '</svg>';
+  }
 
   const DYNAMIC_ITEMS = [
-    { id: 'dyn-pp', svg: dynCard('pp'), say: 'Pianissimo', detail: 'pp · very soft' },
-    { id: 'dyn-p', svg: dynCard('p'), say: 'Piano', detail: 'p · soft' },
-    { id: 'dyn-mp', svg: dynCard('mp'), say: 'Mezzo piano', detail: 'mp · medium soft' },
-    { id: 'dyn-mf', svg: dynCard('mf'), say: 'Mezzo forte', detail: 'mf · medium loud' },
-    { id: 'dyn-f', svg: dynCard('f'), say: 'Forte', detail: 'f · loud' },
-    { id: 'dyn-ff', svg: dynCard('ff'), say: 'Fortissimo', detail: 'ff · very loud' },
-    { id: 'dyn-sfz', svg: dynCard('sfz'), say: 'Sforzando', detail: 'sfz · a sudden strong accent' },
-    { id: 'dyn-fp', svg: dynCard('fp'), say: 'Forte piano', detail: 'fp · loud, then right away soft' },
-    { id: 'dyn-cresc', svg: card(N.hairpin(22, 108, 62, true)), say: 'Crescendo', detail: 'gradually louder' },
-    { id: 'dyn-decresc', svg: card(N.hairpin(22, 108, 62, false)), say: 'Decrescendo', detail: 'gradually softer · also diminuendo' }
+    { id: 'dyn-pp', chipHtml: dynChip('pp'), svg: dynCard('pp'), say: 'Pianissimo', detail: 'pp · very soft' },
+    { id: 'dyn-p', chipHtml: dynChip('p'), svg: dynCard('p'), say: 'Piano', detail: 'p · soft' },
+    { id: 'dyn-mp', chipHtml: dynChip('mp'), svg: dynCard('mp'), say: 'Mezzo piano', detail: 'mp · medium soft' },
+    { id: 'dyn-mf', chipHtml: dynChip('mf'), svg: dynCard('mf'), say: 'Mezzo forte', detail: 'mf · medium loud' },
+    { id: 'dyn-f', chipHtml: dynChip('f'), svg: dynCard('f'), say: 'Forte', detail: 'f · loud' },
+    { id: 'dyn-ff', chipHtml: dynChip('ff'), svg: dynCard('ff'), say: 'Fortissimo', detail: 'ff · very loud' },
+    { id: 'dyn-sfz', chipHtml: dynChip('sfz'), svg: dynCard('sfz'), say: 'Sforzando', detail: 'sfz · a sudden strong accent' },
+    { id: 'dyn-fp', chipHtml: dynChip('fp'), svg: dynCard('fp'), say: 'Forte piano', detail: 'fp · loud, then right away soft' },
+    { id: 'dyn-cresc', chipHtml: hairpinChip(true), chip: 'Crescendo', svg: card(N.hairpin(22, 108, 62, true)), say: 'Crescendo', detail: 'gradually louder' },
+    { id: 'dyn-decresc', chipHtml: hairpinChip(false), chip: 'Decrescendo', svg: card(N.hairpin(22, 108, 62, false)), say: 'Decrescendo', detail: 'gradually softer · also diminuendo' }
   ];
 
   /* =========================================================
    * Symbols: bowing, articulation, repeats, signs
    * ========================================================= */
 
-  const B4 = N.posToY(4, TOP), G4 = N.posToY(2, TOP);
+  const B4 = N.posToY(4, TOP), G4 = N.posToY(2, TOP), C5 = N.posToY(5, TOP), D5 = N.posToY(6, TOP);
 
+  // C5 sits in a space, so a staccato or tenuto fits in the next space up; taller marks go above the staff.
   function articulationCard(mark) {
-    // C5 sits in a space, so a staccato or tenuto fits in the next space up (the accent goes above the staff).
-    const C5 = N.posToY(5, TOP);
     const n = N.note(65, C5, { dur: 'q', up: false });
     const space = C5 - N.SP;
     let m = '';
@@ -390,10 +431,15 @@
     if (mark === 'tenuto') m = N.tenuto(65, space + 0.9);
     return card(staff5() + n.svg + m);
   }
+  // A stem-down B4 with a symbol centred above the staff.
+  function markAboveCard(glyphName) {
+    return card(staff5() + N.note(65, B4, { dur: 'q', up: false }).svg + N.above(glyphName, 65, TOP - 4));
+  }
   function bowCard(down) {
     const n = N.note(65, B4, { dur: 'q', up: false });
     return card(staff5() + n.svg + (down ? N.downBow(65, TOP - 5) : N.upBow(65, TOP - 5)));
   }
+  const textCard = (str, size) => card(N.text(65, 72, str, size || 34));
 
   const SYMBOL_ITEMS = [
     { id: 'sym-down', svg: bowCard(true), say: 'Down bow', detail: 'pull the bow toward the tip' },
@@ -409,21 +455,20 @@
     { id: 'sym-staccato', svg: articulationCard('staccato'), say: 'Staccato', detail: 'short and separated' },
     { id: 'sym-accent', svg: articulationCard('accent'), say: 'Accent', detail: 'start the note strongly' },
     { id: 'sym-tenuto', svg: articulationCard('tenuto'), say: 'Tenuto', detail: 'full length, a little weight' },
-    { id: 'sym-fermata', svg: card(staff5() + N.note(65, B4, { dur: 'q', up: false }).svg + N.fermata(65, TOP - 5)),
-      say: 'Fermata', detail: 'hold longer than written' },
-    { id: 'sym-pizz', svg: card(N.text(65, 72, 'pizz.', 40)), say: 'Pizzicato', detail: 'pluck the string' },
-    { id: 'sym-arco', svg: card(N.text(65, 72, 'arco', 40)), say: 'Arco', detail: 'play with the bow again' },
+    { id: 'sym-fermata', svg: markAboveCard('fermataAbove'), say: 'Fermata', detail: 'hold longer than written' },
+    { id: 'sym-pizz', svg: textCard('pizz.', 40), say: 'Pizzicato', detail: 'pluck the string' },
+    { id: 'sym-arco', svg: textCard('arco', 40), say: 'Arco', detail: 'play with the bow again' },
     { id: 'sym-repeat', svg: card(staff5() + N.startRepeat(8, TOP) +
         N.note(48, A4, { dur: 'q', up: true }).svg + N.note(80, A4, { dur: 'q', up: true }).svg + N.endRepeat(124, TOP)),
       say: 'Repeat sign', detail: 'go back and play it again' },
-    { id: 'sym-endings', svg: card(staff5() +
+    { id: 'sym-endings', chip: 'Endings', svg: card(staff5() +
         N.line(6, 26, 60, 26, 1.3) + N.line(6.6, 26, 6.6, 36, 1.3) + N.text(16, 37, '1.', 13, { italic: false }) +
         N.note(34, A4, { dur: 'h', up: true }).svg + N.endRepeat(64, TOP) +
         N.line(70, 26, 124, 26, 1.3) + N.line(70.6, 26, 70.6, 36, 1.3) + N.text(80, 37, '2.', 13, { italic: false }) +
         N.note(98, A4, { dur: 'h', up: true }).svg + N.finalBarline(127, TOP)),
       say: 'First and second endings', detail: '1st time take ending 1, 2nd time skip to ending 2' },
-    { id: 'sym-dc', svg: card(N.text(65, 70, 'D.C. al Fine', 21)), say: 'D.C. al Fine', detail: 'back to the beginning, stop at Fine' },
-    { id: 'sym-fine', svg: card(N.text(65, 72, 'Fine', 36)), say: 'Fine', detail: '“fee-nay” · the end' },
+    { id: 'sym-dc', svg: textCard('D.C. al Fine', 21), say: 'D.C. al Fine', detail: 'back to the beginning, stop at Fine' },
+    { id: 'sym-fine', svg: textCard('Fine', 36), say: 'Fine', detail: '“fee-nay” · the end' },
     { id: 'sym-coda', svg: card(N.coda(65, 84, 64)), say: 'Coda', detail: 'jump to the ending section' },
     { id: 'sym-sharp', svg: card(N.accidental('#', 65 - N.accidentalWidth('#', 92) / 2, 62, 92)), say: 'Sharp', detail: 'raises a note a half step' },
     { id: 'sym-flat', svg: card(N.accidental('b', 65 - N.accidentalWidth('b', 92) / 2, 74, 92)), say: 'Flat', detail: 'lowers a note a half step' },
@@ -433,154 +478,374 @@
   ];
 
   /* =========================================================
-   * Rhythm measures (one per card, drawn on a one-line staff)
+   * Advanced and contemporary symbols
    * ========================================================= */
 
-  const R_VB = '0 6 320 92';
-  const R_LINE = 62;
-  const R_X0 = 44, R_X1 = 300;
+  function articAbove(glyphName) {
+    // Stem-down C5; marks too tall for a space sit just above the staff.
+    return card(staff5() + N.note(65, C5, { dur: 'q', up: false }).svg + N.above(glyphName, 65, TOP - 3));
+  }
+  function glissCard() {
+    const a = N.note(36, G4, { dur: 'h', up: true });
+    const b = N.note(96, D5, { dur: 'h', up: false });
+    const x1 = 36 + 9, y1 = G4, x2 = 96 - 9, y2 = D5;
+    const ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+    return card(staff5() + a.svg + b.svg + N.line(x1, y1, x2, y2, 1.4) +
+      '<g transform="translate(' + ((x1 + x2) / 2) + ',' + ((y1 + y2) / 2 - 4) + ') rotate(' + ang.toFixed(1) + ')">' +
+      N.text(0, 0, 'gliss.', 11) + '</g>');
+  }
+  function tremoloCard() {
+    const n = N.note(65, B4, { dur: 'h', up: false });
+    return card(staff5() + n.svg + N.tremolo(n.stemX, B4 + 24));
+  }
+  function nienteCard() {
+    return card(N.hairpin(16, 100, 62, false) +
+      '<circle cx="106" cy="62" r="5" fill="none" stroke="#111" stroke-width="1.8"/>');
+  }
+  function quarterToneCard(acc, y) {
+    return card(N.accidental(acc, 65 - N.accidentalWidth(acc, 92) / 2, y, 92));
+  }
 
-  // len in beats; ev = events { t, dur | rest, dots }; beams: [first, last, level]; count tokens.
-  const CELLS = {
-    q:    { len: 1, ev: [{ t: 0, dur: 'q' }], count: (b) => [b] },
-    ee:   { len: 1, ev: [{ t: 0, dur: '8' }, { t: 0.5, dur: '8' }], beams: [[0, 1, 0]], count: (b) => [b, '&'] },
-    qr:   { len: 1, ev: [{ t: 0, rest: 'q' }], count: (b) => ['(' + b + ')'] },
-    h:    { len: 2, ev: [{ t: 0, dur: 'h' }], count: (b) => [b, '–'] },
-    hr:   { len: 2, ev: [{ t: 0, rest: 'h' }], count: (b) => ['(' + b, (b + 1) + ')'] },
-    dh:   { len: 3, ev: [{ t: 0, dur: 'h', dots: 1 }], count: (b) => [b, '–', '–'] },
-    w:    { len: 4, ev: [{ t: 0, dur: 'w' }], count: (b) => [b, '–', '–', '–'] },
-    ssss: { len: 1, ev: [0, 0.25, 0.5, 0.75].map((t) => ({ t: t, dur: '16' })), beams: [[0, 3, 0], [0, 3, 1]],
-            count: (b) => [b, 'e', '&', 'a'] },
-    e_ss: { len: 1, ev: [{ t: 0, dur: '8' }, { t: 0.5, dur: '16' }, { t: 0.75, dur: '16' }], beams: [[0, 2, 0], [1, 2, 1]],
-            count: (b) => [b, '&', 'a'] },
-    ss_e: { len: 1, ev: [{ t: 0, dur: '16' }, { t: 0.25, dur: '16' }, { t: 0.5, dur: '8' }], beams: [[0, 2, 0], [0, 1, 1]],
-            count: (b) => [b, 'e', '&'] },
-    trip: { len: 1, ev: [0, 1 / 3, 2 / 3].map((t) => ({ t: t, dur: '8' })), beams: [[0, 2, 0]], tuplet: '3',
-            count: (b) => [b, 'trip', 'let'] },
-    dq_e: { len: 2, ev: [{ t: 0, dur: 'q', dots: 1 }, { t: 1.5, dur: '8' }], count: (b) => [b, '–', '&'] }
+  const ADVANCED_SYMBOLS = [
+    { id: 'adv-marcato', svg: articAbove('articMarcatoAbove'), say: 'Marcato', detail: 'a strong, heavy accent' },
+    { id: 'adv-staccatissimo', svg: articAbove('articStaccatissimoWedgeAbove'), say: 'Staccatissimo', detail: 'as short as possible' },
+    { id: 'adv-accstacc', chip: 'Accent + staccato', svg: articAbove('articAccentStaccatoAbove'), say: 'Accent staccato', detail: 'strong and short' },
+    { id: 'adv-portato', svg: articAbove('articTenutoStaccatoAbove'), say: 'Portato', detail: 'gently separated, often in one bow (louré)' },
+    { id: 'adv-tenacc', chip: 'Accent + tenuto', svg: articAbove('articTenutoAccentAbove'), say: 'Accent tenuto', detail: 'strong start, full length' },
+    { id: 'adv-snap', svg: markAboveCard('pluckedSnapPizzicatoAbove'), say: 'Bartók pizzicato', detail: 'snap pizz: pull the string up so it slaps the fingerboard' },
+    { id: 'adv-buzz', svg: markAboveCard('pluckedBuzzPizzicato'), say: 'Buzz pizzicato', detail: 'pluck so the string buzzes against the fingerboard' },
+    { id: 'adv-harmonic', svg: markAboveCard('stringsHarmonic'), say: 'Harmonic', detail: 'touch the string lightly instead of pressing down' },
+    { id: 'adv-tremolo', svg: tremoloCard(), say: 'Tremolo', detail: 'very fast, repeated bow strokes' },
+    { id: 'adv-gliss', svg: glissCard(), say: 'Glissando', detail: 'slide from one note to the next' },
+    { id: 'adv-xhead', chip: 'X notehead', svg: card(staff5() + N.note(65, B4, { dur: 'q', up: false, head: 'noteheadXBlack' }).svg),
+      say: 'X notehead', detail: 'a percussive sound with no clear pitch' },
+    { id: 'adv-qsharp', svg: quarterToneCard('qs', 62), say: 'Quarter-tone sharp', detail: 'raise the note by a quarter step' },
+    { id: 'adv-qflat', svg: quarterToneCard('qf', 74), say: 'Quarter-tone flat', detail: 'lower the note by a quarter step' },
+    { id: 'adv-fshort', svg: markAboveCard('fermataShortAbove'), say: 'Short fermata', detail: 'a brief pause' },
+    { id: 'adv-flong', svg: markAboveCard('fermataLongAbove'), say: 'Long fermata', detail: 'a long pause' },
+    { id: 'adv-caesura', svg: card(staff5() + N.note(40, A4, { dur: 'q', up: true }).svg + N.glyph('caesura', 70, TOP + 10) +
+        N.note(104, A4, { dur: 'q', up: true }).svg), say: 'Caesura', detail: '“railroad tracks”: a complete stop' },
+    { id: 'adv-sfp', chipHtml: dynChip('sfp'), svg: dynCard('sfp'), say: 'Sforzando piano', detail: 'sfp · a strong accent, then right away soft' },
+    { id: 'adv-niente', chip: 'Al niente', svg: nienteCard(), say: 'Al niente', detail: 'fade away to nothing' },
+    { id: 'adv-collegno', svg: textCard('col legno', 30), say: 'Col legno', detail: 'play with the wood of the bow' },
+    { id: 'adv-sulpont', svg: textCard('sul pont.', 32), say: 'Sul ponticello', detail: 'bow very near the bridge: glassy, eerie' },
+    { id: 'adv-sultasto', svg: textCard('sul tasto', 32), say: 'Sul tasto', detail: 'bow over the fingerboard: soft and airy' },
+    { id: 'adv-flautando', svg: textCard('flautando', 30), say: 'Flautando', detail: 'light, fast bow, like a flute' },
+    { id: 'adv-consord', svg: textCard('con sord.', 32), say: 'Con sordino', detail: 'put the mute on' },
+    { id: 'adv-senzasord', svg: textCard('senza sord.', 28), say: 'Senza sordino', detail: 'take the mute off' },
+    { id: 'adv-senzavib', svg: textCard('senza vib.', 30), say: 'Senza vibrato', detail: 'no vibrato' }
+  ];
+
+  /* =========================================================
+   * Rhythms: one measure per card, drawn on a one-line staff
+   * ========================================================= */
+
+  // Durations are in units of 1/48 of a whole note: sixteenth 3, eighth 6, quarter 12,
+  // dotted quarter 18, half 24, whole 48; an eighth-note triplet is 4.
+  // Beat lengths per meter; compound meters beat in dotted quarters, and 7/8 is 2+2+3.
+  const METERS = {
+    '2/2': { top: 2, bottom: 2, beats: [24, 24], count: 'beat' },
+    '3/2': { top: 3, bottom: 2, beats: [24, 24, 24], count: 'beat' },
+    '2/4': { top: 2, bottom: 4, beats: [12, 12], count: 'beat' },
+    '3/4': { top: 3, bottom: 4, beats: [12, 12, 12], count: 'beat' },
+    '4/4': { top: 4, bottom: 4, beats: [12, 12, 12, 12], count: 'beat' },
+    '5/4': { top: 5, bottom: 4, beats: [12, 12, 12, 12, 12], count: 'beat' },
+    '3/8': { top: 3, bottom: 8, beats: [6, 6, 6], count: 'eighth' },
+    '6/8': { top: 6, bottom: 8, beats: [18, 18], count: 'eighth' },
+    '7/8': { top: 7, bottom: 8, beats: [12, 12, 18], count: 'eighth' },
+    '9/8': { top: 9, bottom: 8, beats: [18, 18, 18], count: 'eighth' },
+    '12/8': { top: 12, bottom: 8, beats: [18, 18, 18, 18], count: 'eighth' }
+  };
+  const METER_IDS = Object.keys(METERS);
+
+  // One-beat cells for each beat length: durations (negative = rest), weight, and an optional tuplet.
+  const BEAT_CELLS = {
+    12: {
+      basic: { q: [[12], 4], ee: [[6, 6], 4], qr: [[-12], 1.4] },
+      advanced: { ssss: [[3, 3, 3, 3], 1.5], e_ss: [[6, 3, 3], 1], ss_e: [[3, 3, 6], 1], trip: [[4, 4, 4], 1, true],
+        de_s: [[9, 3], 0.8], er_e: [[-6, 6], 0.8] }
+    },
+    24: {
+      basic: { h: [[24], 4], qq: [[12, 12], 4], hr: [[-24], 1.2] },
+      advanced: { q_ee: [[12, 6, 6], 1.2], ee_q: [[6, 6, 12], 1.2], eeee: [[6, 6, 6, 6], 1], dq_e: [[18, 6], 1],
+        qr_q: [[-12, 12], 0.8], qtrip: [[8, 8, 8], 0.6, true] }
+    },
+    6: {
+      basic: { e: [[6], 4], er: [[-6], 1.2] },
+      advanced: { ss: [[3, 3], 2] }
+    },
+    18: {
+      basic: { dq: [[18], 3], q_e: [[12, 6], 3], eee: [[6, 6, 6], 3], dqr: [[-18], 0.8] },
+      advanced: { e_q: [[6, 12], 1], ss_e_e: [[3, 3, 6, 6], 1], e_ss_e: [[6, 3, 3, 6], 1], de_s_e: [[9, 3, 6], 1],
+        er_e_e: [[-6, 6, 6], 0.8], s6: [[3, 3, 3, 3, 3, 3], 0.6] }
+    }
   };
 
-  const BASIC_WEIGHTS = { q: 4, ee: 4, qr: 1.4, h: 2, hr: 0.5, dh: 0.7, w: 0.4 };
-  const ADVANCED_WEIGHTS = Object.assign({}, BASIC_WEIGHTS, { ssss: 1.5, e_ss: 1, ss_e: 1, trip: 1, dq_e: 1.3 });
+  // Cells longer than one beat, and the beats they may start on in each meter.
+  const MULTI_CELLS = [
+    { ev: [24], span: 2, beat: 12, w: 2, starts: { '2/4': [0], '3/4': [0, 1], '4/4': [0, 2], '5/4': [0, 1, 3], '7/8': [0] } },
+    { ev: [-24], span: 2, beat: 12, w: 0.4, starts: { '4/4': [0, 2] } },
+    { ev: [18, 6], span: 2, beat: 12, w: 1.2, advanced: true, starts: { '2/4': [0], '3/4': [0, 1], '4/4': [0, 2], '5/4': [0, 1, 3] } },
+    { ev: [36], span: 3, beat: 12, w: 0.7, starts: { '3/4': [0], '4/4': [0, 1], '5/4': [0] } },
+    { ev: [48], span: 4, beat: 12, w: 0.4, starts: { '4/4': [0] } },
+    { ev: [48], span: 2, beat: 24, w: 1, starts: { '2/2': [0], '3/2': [0, 1] } },
+    { ev: [72], span: 3, beat: 24, w: 0.4, starts: { '3/2': [0] } },
+    { ev: [36, 12], span: 2, beat: 24, w: 0.8, advanced: true, starts: { '2/2': [0], '3/2': [0, 1] } },
+    { ev: [12], span: 2, beat: 6, w: 1.5, starts: { '3/8': [0, 1] } },
+    { ev: [18], span: 3, beat: 6, w: 0.6, starts: { '3/8': [0] } },
+    { ev: [36], span: 2, beat: 18, w: 0.8, starts: { '6/8': [0], '9/8': [0, 1], '12/8': [0, 2] } },
+    { ev: [72], span: 4, beat: 18, w: 0.3, starts: { '12/8': [0] } }
+  ];
 
-  function cellFits(name, beat, meter) {
-    const c = CELLS[name];
-    if (beat + c.len > meter) return false;
-    if (name === 'dh') return meter === 3 && beat === 0;
-    if (name === 'w') return meter === 4 && beat === 0;
-    if (name === 'hr') return meter === 4 && (beat === 0 || beat === 2);
-    if (c.len === 2) return meter === 4 ? beat === 0 || beat === 2 : beat <= 1;
-    return true;
-  }
+  // Duration in units -> [note value, dots].
+  const NOTE_VALUE = { 72: ['w', 1], 48: ['w', 0], 36: ['h', 1], 24: ['h', 0], 18: ['q', 1], 12: ['q', 0],
+    9: ['8', 1], 6: ['8', 0], 3: ['16', 0] };
+  const TUPLET_VALUE = { 4: ['8', 0], 8: ['q', 0] };
+  const REST_VALUE = { 24: ['h', 0], 18: ['q', 1], 12: ['q', 0], 6: ['8', 0] };
 
-  function weightedPick(weights, rng) {
-    const names = Object.keys(weights);
+  function weightedPick(options, rng) {
     let total = 0;
-    names.forEach((n) => { total += weights[n]; });
+    options.forEach((o) => { total += o.w; });
     let x = rng() * total;
-    for (let i = 0; i < names.length; i++) { x -= weights[names[i]]; if (x <= 0) return names[i]; }
-    return names[names.length - 1];
+    for (let i = 0; i < options.length; i++) { x -= options[i].w; if (x <= 0) return options[i]; }
+    return options[options.length - 1];
   }
 
-  function makeMeasure(meter, level, rng) {
-    const all = level === 'advanced' ? ADVANCED_WEIGHTS : BASIC_WEIGHTS;
-    for (let attempt = 0; attempt < 30; attempt++) {
+  // Cells: [{ start (units), beat (index), ev: [durations], tuplet }]
+  function makeMeasure(meterId, level, rng) {
+    const meter = METERS[meterId];
+    const adv = level === 'advanced';
+    const starts = [];
+    meter.beats.reduce((acc, len) => { starts.push(acc); return acc + len; }, 0);
+    for (let attempt = 0; attempt < 40; attempt++) {
       const cells = [];
-      let beat = 0;
-      while (beat < meter) {
-        const w = {};
-        Object.keys(all).forEach((n) => { if (cellFits(n, beat, meter)) w[n] = all[n]; });
-        const name = weightedPick(w, rng);
-        cells.push({ name: name, beat: beat });
-        beat += CELLS[name].len;
+      let i = 0;
+      while (i < meter.beats.length) {
+        const len = meter.beats[i];
+        const opts = [];
+        const sets = BEAT_CELLS[len];
+        [sets.basic, adv ? sets.advanced : null].forEach((set) => {
+          if (!set) return;
+          Object.keys(set).forEach((name) => {
+            const c = set[name];
+            // Triplets don't fit eighth-note counting.
+            if (c[2] && meter.count === 'eighth') return;
+            opts.push({ ev: c[0], w: c[1], tuplet: !!c[2], span: 1 });
+          });
+        });
+        MULTI_CELLS.forEach((m) => {
+          if (m.beat !== len || (m.advanced && !adv)) return;
+          if (!m.starts[meterId] || m.starts[meterId].indexOf(i) < 0 || i + m.span > meter.beats.length) return;
+          opts.push({ ev: m.ev, w: m.w, tuplet: false, span: m.span });
+        });
+        const c = weightedPick(opts, rng);
+        cells.push({ start: starts[i], beat: i, ev: c.ev, tuplet: c.tuplet });
+        i += c.span;
       }
-      const rests = cells.filter((c) => CELLS[c.name].ev[0].rest).length;
-      if (rests < cells.length && !(rests >= 2 && cells.length <= 3)) return cells;
+      let rest = 0, all = 0;
+      cells.forEach((c) => c.ev.forEach((d) => { all += Math.abs(d); if (d < 0) rest += -d; }));
+      if (rest <= all / 3) return cells;
     }
-    return [{ name: meter === 3 ? 'dh' : 'w', beat: 0 }];
+    return [{ start: 0, beat: 0, ev: [meter.beats.reduce((a, b) => a + b, 0)], tuplet: false }];
   }
 
-  function rhythmSvg(cells, meter) {
-    const bw = (R_X1 - R_X0) / meter;
-    let s = N.singleLine(6, 312, R_LINE) + N.barline(312, R_LINE - 20, R_LINE + 20, 1.6);
-    s += N.timeSigDigit(meter, 22, R_LINE - 10) + N.timeSigDigit(4, 22, R_LINE + 10);
-    const stemTop = R_LINE - 35;
+  // Measure width grows with the number of sixteenths it can hold.
+  function measureWidth(meter) {
+    const total = meter.beats.reduce((a, b) => a + b, 0);
+    return Math.max(240, total / 3 * 15);
+  }
+
+  function rhythmSvg(cells, meterId) {
+    const meter = METERS[meterId];
+    const total = meter.beats.reduce((a, b) => a + b, 0);
+    const line = 62;
+    const tsW = Math.max(N.timeSigNumberWidth(meter.top), N.timeSigNumberWidth(meter.bottom));
+    const tsX = 8 + tsW / 2;
+    const x0 = 16 + tsW, W = measureWidth(meter);
+    const barX = x0 + W + 24;   // room after the last note
+    let s = N.singleLine(4, barX, line) + N.barline(barX, line - 20, line + 20, 1.8) + N.timeSig(meter.top, meter.bottom, tsX, line);
+    const stemTop = line - 35;
+    const xAt = (pos) => x0 + pos / total * W + 12;
+
     cells.forEach((c) => {
-      const cell = CELLS[c.name];
-      const stems = [];
-      cell.ev.forEach((e) => {
-        const x = R_X0 + (c.beat + e.t) * bw + 12;
-        if (e.rest) {
-          s += N.rest(e.rest, x + 2, e.rest === 'w' ? R_LINE + 10 : R_LINE);
-          return;
+      let pos = c.start;
+      const notes = [];   // { x, stemX, value, rest }
+      c.ev.forEach((d) => {
+        const len = Math.abs(d);
+        const x = xAt(pos);
+        if (d < 0) {
+          const rv = REST_VALUE[len] || ['q', 0];
+          s += N.rest(rv[0], x + 2, line, rv[1]);
+          notes.push({ rest: true });
+        } else {
+          const v = (c.tuplet ? TUPLET_VALUE[len] : NOTE_VALUE[len]) || ['q', 0];
+          notes.push({ x: x, value: v[0], dots: v[1], pos: pos });
         }
-        const n = N.note(x, R_LINE, { dur: e.dur, up: true, dots: e.dots || 0, dotUp: true, noFlag: !!cell.beams });
-        s += n.svg;
-        stems.push(n.stemX);
+        pos += len;
       });
-      (cell.beams || []).forEach(([a, b, level]) => {
-        if (a === b) return;
-        s += N.beam(stems[a], stems[b], stemTop, level);
+      // Beam runs of consecutive eighths/sixteenths within the cell; a lone one gets a flag.
+      const flagged = (n) => !n.rest && (n.value === '8' || n.value === '16');
+      let run = [];
+      const flush = () => {
+        const beamedRun = run.length > 1;
+        run.forEach((n) => {
+          const r = N.note(n.x, line, { dur: n.value, up: true, dots: n.dots, dotUp: true, noFlag: beamedRun });
+          s += r.svg;
+          n.stemX = r.stemX;
+        });
+        if (beamedRun) {
+          s += N.beam(run[0].stemX, run[run.length - 1].stemX, stemTop, 0);
+          // Secondary beams for sixteenths: across neighbours, or a short stub for a lone one.
+          for (let i = 0; i < run.length; i++) {
+            if (run[i].value !== '16') continue;
+            const next = run[i + 1], prev = run[i - 1];
+            if (next && next.value === '16') { s += N.beam(run[i].stemX, next.stemX, stemTop, 1); continue; }
+            if (prev && prev.value === '16') continue;
+            const stub = 9;
+            if (prev) s += N.rect(run[i].stemX - stub, stemTop + 7.5, stub + 0.65, 5);
+            else if (next) s += N.rect(run[i].stemX - 0.65, stemTop + 7.5, stub + 0.65, 5);
+          }
+        }
+        run = [];
+      };
+      notes.forEach((n) => {
+        if (flagged(n)) { run.push(n); return; }
+        flush();
+        if (!n.rest) {
+          const r = N.note(n.x, line, { dur: n.value, up: true, dots: n.dots, dotUp: true });
+          s += r.svg;
+          n.stemX = r.stemX;
+        }
       });
-      if (cell.tuplet) s += N.tuplet3((stems[0] + stems[stems.length - 1]) / 2, stemTop - 4);
+      flush();
+      if (c.tuplet) {
+        const xs = notes.filter((n) => !n.rest).map((n) => n.stemX);
+        const beamedTuplet = notes.every((n) => flagged(n));
+        if (beamedTuplet) {
+          s += N.tuplet3((xs[0] + xs[xs.length - 1]) / 2, stemTop - 4);
+        } else {
+          // Quarter-note triplet: a bracket with a 3.
+          const bx1 = xs[0] - 6, bx2 = xs[xs.length - 1] + 2, by = stemTop - 6;
+          s += N.line(bx1, by + 4, bx1, by, 1.1) + N.line(bx1, by, (bx1 + bx2) / 2 - 7, by, 1.1) +
+            N.line((bx1 + bx2) / 2 + 7, by, bx2, by, 1.1) + N.line(bx2, by, bx2, by + 4, 1.1) +
+            N.tuplet3((bx1 + bx2) / 2, by + 6);
+        }
+      }
     });
-    return N.svg(R_VB, s, 'wide');
+    return N.svg('0 6 ' + Math.ceil(barX + 6) + ' 92', s, 'wide');
   }
 
-  function rhythmItem(meter, level, rng) {
-    const cells = makeMeasure(meter, level, rng);
+  // Counting syllables for the answer.
+  function countTokens(cells, meterId) {
+    const meter = METERS[meterId];
     const tokens = [];
+    if (meter.count === 'eighth') {
+      // Count every eighth: 1 2 3 4 5 6; a sixteenth in between is "&".
+      cells.forEach((c) => {
+        let pos = c.start;
+        c.ev.forEach((d) => {
+          const t = pos % 6 === 0 ? String(pos / 6 + 1) : '&';
+          tokens.push(d < 0 ? '(' + t + ')' : t);
+          pos += Math.abs(d);
+        });
+      });
+      return tokens;
+    }
+    // Count beats: 1 e & a, 1 trip let; a beat held over from a longer note is "–".
+    const beatStarts = [];
+    meter.beats.reduce((acc, len) => { beatStarts.push(acc); return acc + len; }, 0);
+    const events = [];
     cells.forEach((c) => {
-      const t = CELLS[c.name].count(c.beat + 1);
-      for (let i = 0; i < t.length; i++) tokens.push(String(t[i]));
+      let pos = c.start;
+      c.ev.forEach((d) => { events.push({ pos: pos, len: Math.abs(d), rest: d < 0 }); pos += Math.abs(d); });
+    });
+    meter.beats.forEach((len, b) => {
+      const bs = beatStarts[b];
+      const inBeat = events.filter((e) => e.pos >= bs && e.pos < bs + len);
+      if (!inBeat.length) {
+        const holding = events.find((e) => e.pos < bs && e.pos + e.len > bs);
+        if (holding && !holding.rest) tokens.push('–');
+        return;
+      }
+      inBeat.forEach((e) => {
+        const f = (e.pos - bs) / len;
+        const name = f === 0 ? String(b + 1) : Math.abs(f - 0.5) < 1e-6 ? '&' : Math.abs(f - 0.25) < 1e-6 ? 'e'
+          : Math.abs(f - 0.75) < 1e-6 ? 'a' : Math.abs(f - 1 / 3) < 1e-6 ? 'trip' : Math.abs(f - 2 / 3) < 1e-6 ? 'let' : '&';
+        tokens.push(e.rest ? '(' + name + ')' : name);
+      });
+    });
+    return tokens;
+  }
+
+  function rhythmItem(meterId, level, rng) {
+    const cells = makeMeasure(meterId, level, rng);
+    const onsets = [];
+    cells.forEach((c) => {
+      let pos = c.start;
+      c.ev.forEach((d) => { if (d > 0) onsets.push(pos); pos += Math.abs(d); });
     });
     return {
-      id: 'rhythm-' + meter + '-' + cells.map((c) => c.name).join('.'),
-      svg: rhythmSvg(cells, meter),
-      say: tokens.join(' '),
-      detail: 'count it, then clap or play it'
+      id: 'rhythm-' + meterId + '-' + cells.map((c) => c.ev.join(',')).join('|'),
+      svg: rhythmSvg(cells, meterId),
+      say: countTokens(cells, meterId).join(' '),
+      detail: 'count it, then clap or play it',
+      onsets: onsets
     };
   }
 
-  /* =========================================================
-   * Category list
-   * ========================================================= */
-
-  const CATEGORIES = [
-    { id: 'notes', name: 'Note names', desc: 'Home position: G A B C · D E F♯ G · A B C♯ D · E F♯ G♯ A B',
-      kind: 'single', strings: true, pool: (s) => homePool(s.strings) },
-    { id: 'values', name: 'Basic note values', desc: 'Eighth, quarter, half, whole and their rests', kind: 'single',
-      pool: () => BASIC_VALUES },
-    { id: 'advvalues', name: 'Advanced note values', desc: 'Dotted notes, triplets, sixteenths', kind: 'single',
-      pool: () => ADVANCED_VALUES },
-    { id: 'pitches', name: 'Diatonic note names', desc: 'A scale, chromatic in a range, or notes you pick', kind: 'single',
-      pitchOptions: true, pool: (s) => pitchPool(s) },
-    { id: 'keys', name: 'Key signatures', desc: 'Up to 4 sharps or 4 flats', kind: 'single',
-      pool: () => KEY_ITEMS },
-    { id: 'clefs', name: 'Clefs', desc: 'Treble, bass, alto, tenor', kind: 'single',
-      pool: () => CLEF_ITEMS },
-    { id: 'r34', name: 'Triple meter rhythms', desc: 'One measure of 3/4 per card', kind: 'meter3', rhythm: true,
-      make: (s, rng) => rhythmItem(3, s.rhythmLevel, rng) },
-    { id: 'r44', name: 'Double meter rhythms', desc: 'One measure of 4/4 per card', kind: 'meter4', rhythm: true,
-      make: (s, rng) => rhythmItem(4, s.rhythmLevel, rng) },
-    { id: 'dynamics', name: 'Dynamics', desc: 'pp to ff, sfz, fp, hairpins', kind: 'single',
-      pool: () => DYNAMIC_ITEMS },
-    { id: 'symbols', name: 'Symbols', desc: 'Bowing, articulation, dynamics, repeats', kind: 'single',
-      // Dynamics are symbols too, unless the Dynamics category is already in the mix.
-      pool: (s) => (s.categories && s.categories.indexOf('dynamics') >= 0 ? SYMBOL_ITEMS : SYMBOL_ITEMS.concat(DYNAMIC_ITEMS)) }
-  ];
-
-  function byId(id) { return CATEGORIES.find((c) => c.id === id); }
-
-  // One random card from a category.
-  function pick(cat, settings, rng) {
-    if (cat.make) return cat.make(settings, rng);
-    const pool = cat.pool(settings);
-    return pool[Math.floor(rng() * pool.length)];
+  // A time signature drawn with Leland, for the selection buttons.
+  function meterChip(id) {
+    const m = METERS[id];
+    return '<svg class="chip-art ts" viewBox="-20 -22 40 44" aria-hidden="true">' + N.timeSig(m.top, m.bottom, 0, 0) + '</svg>';
   }
 
+  /* =========================================================
+   * Categories and subcategories
+   * ========================================================= */
+
+  // Chips are the cards themselves; the pool is the picked cards.
+  function itemSubcat(def, items) {
+    return Object.assign(def, {
+      chips: items.map((it) => ({ id: it.id, label: it.chip || it.say, html: it.chipHtml })),
+      pool: (sel) => items.filter((it) => sel.indexOf(it.id) >= 0)
+    });
+  }
+
+  const CATEGORIES = [
+    { id: 'notes', name: 'Note names', subcats: [
+      { id: 'home', name: 'Home position', desc: 'G A B C · D E F♯ G · A B C♯ D · E F♯ G♯ A B, on the strings you pick',
+        chips: STRINGS.map((s) => ({ id: s.id, label: s.name })), pool: (sel) => homePool(sel) },
+      { id: 'diatonic', name: 'Diatonic note names', toggle: true, desc: 'A scale, chromatic in a range, or notes you pick',
+        chips: [{ id: 'on', label: 'On' }], pool: (sel, s) => pitchPool(s) }
+    ] },
+    { id: 'values', name: 'Note values', subcats: [
+      itemSubcat({ id: 'basicvalues', name: 'Basic note values', desc: 'Eighth, quarter, half and whole notes and their rests' }, BASIC_VALUES),
+      itemSubcat({ id: 'advvalues', name: 'Advanced note values', desc: 'Dotted notes, sixteenths, triplets' }, ADVANCED_VALUES)
+    ] },
+    { id: 'keys', name: 'Key signatures', subcats: [
+      itemSubcat({ id: 'keysigs', name: 'Key signatures', desc: 'Name the major key' }, KEY_ITEMS),
+      { id: 'degrees', name: 'Scale degrees', desc: 'Name the scale degree of each note. One key is recommended; more than one is difficult!',
+        chips: KEY_PAIRS.map((k) => ({ id: k.major, label: keyChipLabel(k) })), pool: (sel) => degreePool(sel) }
+    ] },
+    { id: 'rhythms', name: 'Rhythms', subcats: [
+      { id: 'meters', name: 'Time signatures', rhythm: true, desc: 'One measure per card. With several, each rhythm round uses the next one.',
+        chips: METER_IDS.map((id) => ({ id: id, label: id, html: meterChip(id), cls: 'ts-chip' })) }
+    ] },
+    { id: 'symbols', name: 'Symbols', subcats: [
+      itemSubcat({ id: 'dynamics', name: 'Dynamics', desc: 'pp to ff, sfz, fp, hairpins' }, DYNAMIC_ITEMS),
+      itemSubcat({ id: 'symbols', name: 'Bowing, articulation & repeats', desc: 'Bowings, slurs and ties, articulations, repeats, signs' }, SYMBOL_ITEMS),
+      itemSubcat({ id: 'clefs', name: 'Clefs', desc: 'Treble, bass, alto, tenor' }, CLEF_ITEMS),
+      itemSubcat({ id: 'advsymbols', name: 'Advanced & contemporary', desc: 'More accents, Bartók pizz, harmonics, tremolo, glissando, extended techniques' }, ADVANCED_SYMBOLS)
+    ] }
+  ];
+
+  const SUBCATS = [];
+  CATEGORIES.forEach((c) => c.subcats.forEach((sc) => { sc.cat = c.id; SUBCATS.push(sc); }));
+  const subById = (id) => SUBCATS.find((sc) => sc.id === id);
+
   global.Content = {
-    CATEGORIES: CATEGORIES, STRINGS: STRINGS, byId: byId, pick: pick,
+    CATEGORIES: CATEGORIES, SUBCATS: SUBCATS, subById: subById, STRINGS: STRINGS,
+    METERS: METERS, METER_IDS: METER_IDS, rhythmItem: rhythmItem,
     SCALE_CHOICES: SCALE_CHOICES, RANGE_NOTES: RANGE_NOTES, PICK_ROWS: PICK_ROWS,
     pretty: pretty, pitchPool: pitchPool, pitchSummary: pitchSummary
   };

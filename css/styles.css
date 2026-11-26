@@ -78,7 +78,51 @@ kbd {
 .cat[aria-pressed="true"] .box { background: var(--accent); border-color: var(--accent); color: #1b1b1b; }
 .cat .name { font-weight: 700; font-size: 1.05rem; display: block; }
 .cat .desc { color: var(--muted); font-size: 0.88rem; display: block; margin-top: 2px; }
-.hint { color: var(--muted); margin: 12px 2px 0; min-height: 1.2em; }
+.hint { color: var(--muted); margin: 0 2px 14px; min-height: 1.2em; }
+
+/* Categories → subcategories → chips */
+.category-list { display: flex; flex-direction: column; gap: 12px; }
+.catgroup { background: #2a3168; border-radius: 14px; padding: 0 16px; }
+.catgroup > summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px;
+  padding: 14px 0; font-size: 1.2rem; font-weight: 800;
+}
+.catgroup > summary::-webkit-details-marker { display: none; }
+.catgroup > summary::before { content: "\25B8"; color: var(--muted); transition: transform 0.15s; }
+.catgroup[open] > summary::before { transform: rotate(90deg); }
+.cat-count { margin-left: auto; font-size: 0.85rem; font-weight: 700; color: var(--muted); }
+.cat-count.on { color: var(--accent); }
+.subcat { border-top: 1px solid #3d4585; padding: 12px 0 14px; }
+.subhead { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
+.subhead input { width: 22px; height: 22px; margin: 2px 0 0; flex: none; accent-color: var(--accent); cursor: pointer; }
+.sub-name { font-weight: 800; font-size: 1.05rem; }
+.sub-all { font-size: 0.78rem; color: var(--muted); border: 1px solid #5a63a8; border-radius: 999px; padding: 1px 8px; margin-left: 6px; vertical-align: 2px; }
+.sub-desc { display: block; color: var(--muted); font-size: 0.88rem; margin-top: 2px; }
+.ichips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0 34px; }
+.ichip {
+  background: transparent; color: var(--ink); border: 2px solid #4d5596; border-radius: 999px;
+  padding: 5px 12px; font-size: 0.9rem; font-weight: 600; line-height: 1.2;
+}
+.ichip:hover { border-color: #8890d6; }
+.ichip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #1b1b1b; }
+.ichip.art { padding: 3px 10px; display: inline-flex; align-items: center; }
+.ichip .chip-art { height: 26px; width: auto; display: block; fill: currentColor; }
+.ichip .chip-art g { fill: currentColor; }
+.ichip .chip-art path, .ichip .chip-art line { stroke: currentColor; }
+.ichip.ts-chip { border-radius: 12px; padding: 4px 8px; min-width: 52px; justify-content: center; }
+.ichip.ts-chip .chip-art { height: 46px; }
+.sub-extra { margin: 0 0 0 34px; }
+.sub-extra:empty { display: none; }
+.sub-options { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.subcat:not(.on) .sub-options { opacity: 0.45; }
+.options > .sub-options { display: none; }
+
+/* A scale degree: the number with a circumflex accent over it, like â. */
+.deg { position: relative; display: inline-block; padding-top: 0.28em; line-height: 1; }
+.deg::before {
+  content: "\02C6"; position: absolute; left: 0; right: 0; top: -0.12em;
+  text-align: center; font-weight: 700; line-height: 1;
+}
 
 .options { display: flex; flex-direction: column; gap: 18px; }
 .options h2 { margin-bottom: 0; }
@@ -128,7 +172,12 @@ select option { font-weight: 500; }
 .toggle { display: flex !important; gap: 10px; align-items: center; justify-content: flex-start !important; font-weight: 500 !important; margin: 0 !important; cursor: pointer; }
 .toggle input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
 
-.setup-foot { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 14px; padding-bottom: 8px; }
+.setup-foot {
+  grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 14px;
+  position: sticky; bottom: 0; z-index: 5; padding: 16px 0 12px;
+  background: linear-gradient(to bottom, rgba(18, 22, 51, 0), var(--bg) 40%);
+}
+.options { position: sticky; top: 16px; }
 .primary, .secondary {
   border-radius: 14px; padding: 14px 28px; font-size: 1.2rem; font-weight: 800; border: none;
 }
@@ -171,6 +220,7 @@ select option { font-weight: 500; }
 }
 .beat-dots i.on { background: var(--accent); transform: scale(1.35); }
 .beat-dots i.down.on { background: #fff; }
+.beat-dots i.long { width: 1.05em; border-radius: 0.35em; }
 .bpm { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 4.5em; text-align: right; }
 
 .grid {
@@ -210,9 +260,9 @@ select option { font-weight: 500; }
   max-height: 0; overflow: hidden; transition: max-height 0.25s;
 }
 .card .answer b { display: block; font-size: clamp(0.9rem, 3vmin, 2.4rem); color: #b0123f; }
-.card .answer span { display: block; font-size: clamp(0.7rem, 1.7vmin, 1.2rem); color: #555; }
+.card .answer > span { display: block; font-size: clamp(0.7rem, 1.7vmin, 1.2rem); color: #555; }
 .grid.wide .card .answer b { font-size: clamp(0.9rem, 2.8vmin, 2.2rem); }
-.grid.wide .card .answer span { display: none; }
+.grid.wide .card .answer > span { display: none; }
 
 .card.revealed { background: var(--card); border: 3px solid var(--card); }
 .card.revealed .num { color: #9aa0c8; }
@@ -298,4 +348,4 @@ body.paused .card, body.paused .card * { animation-play-state: paused !important
 .pcard { background: #fff; color: #222; border-radius: 12px; padding: 8px; text-align: center; }
 .pcard svg { width: 100%; height: 120px; display: block; }
 .pcard b { display: block; color: #b0123f; }
-.pcard span { display: block; font-size: 0.8rem; color: #555; }
+.pcard > span { display: block; font-size: 0.8rem; color: #555; }

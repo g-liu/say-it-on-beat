@@ -659,18 +659,58 @@
     return '<svg class="chip-art" viewBox="0 -9 60 18" aria-hidden="true">' + N.hairpin(4, 56, 0, opening) + '</svg>';
   }
 
+  // "cresc." and the like written out in italics, followed by a dashed line.
+  function writtenChange(word, x, y, size, end) {
+    const textEnd = x + word.length * size * 0.42;
+    let dashes = '';
+    for (let d = textEnd + size * 0.3; d + size * 0.3 <= end; d += size * 0.55) dashes += N.line(d, y - size * 0.12, d + size * 0.3, y - size * 0.12, size * 0.07);
+    return N.text(x, y, word, size, { anchor: 'start', weight: 'normal' }) + dashes;
+  }
+  function writtenChangeItem(id, word, say, detail) {
+    return { id: id, chip: word + ' – – –', group: 'Louder or softer', svg: card(writtenChange(word, 8, 70, 21, 124)),
+      chipHtml: '<svg class="chip-art" viewBox="0 -15 76 20" aria-hidden="true">' + writtenChange(word, 1, 0, 13, 74) + '</svg>',
+      say: say, detail: detail };
+  }
+  // "subito" in italics before a dynamic.
+  function subitoItem(id, dyn, say, detail) {
+    const body = (x, y, size) => N.text(x, y, 'subito', size * 0.34, { anchor: 'end', weight: 'normal' }) + N.dynamic(dyn, x + size * 0.28, y, size);
+    return { id: id, chip: 'subito ' + dyn, group: 'Louder or softer', svg: card(body(66, 72, 80)),
+      chipHtml: '<svg class="chip-art" viewBox="-36 -24 72 34" aria-hidden="true">' + body(10, 0, 40) + '</svg>', say: say, detail: detail };
+  }
+  const dynItem = (key, group, say, detail) => ({ id: 'dyn-' + key, group: group, chip: say + ' (' + key + ')', chipHtml: dynChip(key), svg: dynCard(key), say: say, detail: detail });
+
   const DYNAMIC_ITEMS = [
-    { id: 'dyn-pp', chipHtml: dynChip('pp'), svg: dynCard('pp'), say: 'Pianissimo', detail: 'pp · very soft' },
-    { id: 'dyn-p', chipHtml: dynChip('p'), svg: dynCard('p'), say: 'Piano', detail: 'p · soft' },
-    { id: 'dyn-mp', chipHtml: dynChip('mp'), svg: dynCard('mp'), say: 'Mezzo piano', detail: 'mp · medium soft' },
-    { id: 'dyn-mf', chipHtml: dynChip('mf'), svg: dynCard('mf'), say: 'Mezzo forte', detail: 'mf · medium loud' },
-    { id: 'dyn-f', chipHtml: dynChip('f'), svg: dynCard('f'), say: 'Forte', detail: 'f · loud' },
-    { id: 'dyn-ff', chipHtml: dynChip('ff'), svg: dynCard('ff'), say: 'Fortissimo', detail: 'ff · very loud' },
-    { id: 'dyn-sfz', chipHtml: dynChip('sfz'), svg: dynCard('sfz'), say: 'Sforzando', detail: 'sfz · a sudden strong accent' },
-    { id: 'dyn-fp', chipHtml: dynChip('fp'), svg: dynCard('fp'), say: 'Forte piano', detail: 'fp · loud, then right away soft' },
-    { id: 'dyn-cresc', chipHtml: hairpinChip(true), chip: 'Crescendo', svg: card(N.hairpin(22, 108, 62, true)), say: 'Crescendo', detail: 'gradually louder' },
-    { id: 'dyn-decresc', chipHtml: hairpinChip(false), chip: 'Decrescendo', svg: card(N.hairpin(22, 108, 62, false)), say: 'Decrescendo', detail: 'gradually softer · also diminuendo' }
+    dynItem('n', 'Levels', 'Niente', 'n · nothing: fade to or from silence'),
+    dynItem('pppp', 'Levels', 'Pianissississimo', 'pppp · as soft as possible'),
+    dynItem('ppp', 'Levels', 'Pianississimo', 'ppp · very, very soft'),
+    dynItem('pp', 'Levels', 'Pianissimo', 'pp · very soft'),
+    dynItem('p', 'Levels', 'Piano', 'p · soft'),
+    dynItem('mp', 'Levels', 'Mezzo piano', 'mp · medium soft'),
+    dynItem('mf', 'Levels', 'Mezzo forte', 'mf · medium loud'),
+    dynItem('f', 'Levels', 'Forte', 'f · loud'),
+    dynItem('ff', 'Levels', 'Fortissimo', 'ff · very loud'),
+    dynItem('fff', 'Levels', 'Fortississimo', 'fff · very, very loud'),
+    dynItem('ffff', 'Levels', 'Fortissississimo', 'ffff · as loud as possible'),
+    { id: 'dyn-cresc', group: 'Louder or softer', chipHtml: hairpinChip(true), chip: 'Crescendo', svg: card(N.hairpin(22, 108, 62, true)), say: 'Crescendo', detail: 'gradually louder' },
+    { id: 'dyn-decresc', group: 'Louder or softer', chipHtml: hairpinChip(false), chip: 'Decrescendo', svg: card(N.hairpin(22, 108, 62, false)), say: 'Decrescendo', detail: 'gradually softer · also diminuendo' },
+    writtenChangeItem('dyn-crescline', 'cresc.', 'Crescendo', 'cresc. · gradually louder until the dashes end'),
+    writtenChangeItem('dyn-decrescline', 'decresc.', 'Decrescendo', 'decresc. · gradually softer until the dashes end'),
+    writtenChangeItem('dyn-dimline', 'dim.', 'Diminuendo', 'dim. · gradually softer until the dashes end'),
+    subitoItem('dyn-subp', 'p', 'Subito piano', 'sub. p · suddenly soft'),
+    subitoItem('dyn-subf', 'f', 'Subito forte', 'sub. f · suddenly loud'),
+    dynItem('sfz', 'Accents', 'Sforzando', 'sfz · a sudden strong accent'),
+    dynItem('sf', 'Accents', 'Sforzando', 'sf · a sudden strong accent (same as sfz)'),
+    dynItem('sff', 'Accents', 'Sforzando fortissimo', 'sff · a very strong sudden accent'),
+    dynItem('sffz', 'Accents', 'Sforzatissimo', 'sffz · an even stronger sforzando'),
+    dynItem('fz', 'Accents', 'Forzando', 'fz · forced: a strong accent'),
+    dynItem('rf', 'Accents', 'Rinforzando', 'rf · reinforced: a sudden push on a note or two'),
+    dynItem('rfz', 'Accents', 'Rinforzando', 'rfz · reinforced: a sudden push on a note or two'),
+    dynItem('fp', 'Accents', 'Forte piano', 'fp · loud, then right away soft'),
+    Object.assign(dynItem('sfp', 'Accents', 'Sforzando piano', 'sfp · a strong accent, then right away soft'), { id: 'adv-sfp' }),
+    dynItem('sfzp', 'Accents', 'Sforzato piano', 'sfzp · a strong accent, then right away soft')
   ];
+  const DEFAULT_DYNAMICS = ['dyn-ppp', 'dyn-pp', 'dyn-p', 'dyn-mp', 'dyn-mf', 'dyn-f', 'dyn-ff', 'dyn-fff', 'dyn-cresc', 'dyn-decresc',
+    'dyn-sfz', 'dyn-fp'];
 
   /* =========================================================
    * Symbols: bowing, articulation, repeats, signs
@@ -907,7 +947,6 @@
     { id: 'adv-qflat', svg: quarterToneCard('qf', 74), say: 'Quarter-tone flat', detail: 'lower the note by a quarter step' },
     { id: 'adv-tqsharp', chip: 'Three-quarter-tone sharp', svg: quarterToneCard('tqs', 62), say: 'Three-quarter-tone sharp', detail: 'raise the note by three quarter steps' },
     { id: 'adv-tqflat', chip: 'Three-quarter-tone flat', svg: quarterToneCard('tqf', 74), say: 'Three-quarter-tone flat', detail: 'lower the note by three quarter steps' },
-    { id: 'adv-sfp', chipHtml: dynChip('sfp'), svg: dynCard('sfp'), say: 'Sforzando piano', detail: 'sfp · a strong accent, then right away soft' },
     { id: 'adv-niente', chip: 'Al niente', svg: nienteCard(), say: 'Al niente', detail: 'fade away to nothing' },
     { id: 'adv-collegno', svg: textCard('col legno', 30), say: 'Col legno', detail: 'play with the wood of the bow' },
     { id: 'adv-sulpont', svg: textCard('sul pont.', 32), say: 'Sul ponticello', detail: 'bow very near the bridge: glassy, eerie' },
@@ -920,7 +959,7 @@
 
   // Picked when Advanced & contemporary is turned on; everything else stays available.
   const DEFAULT_ADVANCED = ['adv-marcato', 'adv-staccatissimo', 'adv-accstacc', 'adv-tenacc', 'adv-snap', 'adv-harmonic',
-    'adv-natharm', 'adv-artharm', 'adv-tremolo', 'adv-gliss', 'adv-sfp', 'adv-collegno', 'adv-sultasto', 'adv-consord',
+    'adv-natharm', 'adv-artharm', 'adv-tremolo', 'adv-gliss', 'adv-collegno', 'adv-sultasto', 'adv-consord',
     'adv-senzasord', 'adv-senzavib'];
 
   /* =========================================================
@@ -1628,7 +1667,7 @@
     'sym-repeat': ['symbols', 'repeats'], 'sym-endings': ['symbols', 'repeats'], 'sym-dc': ['symbols', 'repeats'],
     'sym-fine': ['symbols', 'repeats'], 'sym-coda': ['symbols', 'repeats'], 'sym-final': ['symbols', 'repeats'],
     'sym-fermata': ['symbols', 'pauses'], 'adv-fshort': ['advsymbols', 'pauses'], 'adv-flong': ['advsymbols', 'pauses'],
-    'adv-caesura': ['advsymbols', 'pauses']
+    'adv-caesura': ['advsymbols', 'pauses'], 'adv-sfp': ['advsymbols', 'dynamics']
   };
 
   const CATEGORIES = [
@@ -1671,7 +1710,8 @@
         keyPicker: 'cadenceKeys', options: [{ setting: 'chordLabels', label: 'Answers use', choices: CHORD_LABELS }] }
     ] },
     { id: 'markings', tab: 'cards', name: 'Markings', subcats: [
-      itemSubcat({ id: 'dynamics', symbols: true, name: 'Dynamics', desc: 'pp to ff, sfz, fp, hairpins' }, DYNAMIC_ITEMS),
+      itemSubcat({ id: 'dynamics', symbols: true, name: 'Dynamics', desc: 'pppp to ffff, hairpins, cresc. and dim., subito, accents like sfz and fp',
+        defaults: DEFAULT_DYNAMICS }, DYNAMIC_ITEMS),
       itemSubcat({ id: 'symbols', symbols: true, name: 'Bowing & articulation', desc: 'Bowings, slurs and ties, articulations, pizz. and arco, accidentals' }, SYMBOL_ITEMS),
       itemSubcat({ id: 'tempo', name: 'Tempo', desc: 'Grave to Prestississimo, and tempo changes', defaults: DEFAULT_TEMPOS }, TEMPO_ITEMS),
       { id: 'expressive', name: 'Expressive markings', desc: 'Words for how to play: dolce, cantabile, maestoso…',

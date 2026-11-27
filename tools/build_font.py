@@ -53,6 +53,10 @@ CODEPOINTS = {
     "dynamicSforzando": 0xE524, "dynamicZ": 0xE525,
     "dynamicPP": 0xE52B, "dynamicMP": 0xE52C, "dynamicMF": 0xE52D, "dynamicFF": 0xE52F,
     "dynamicFortePiano": 0xE534, "dynamicSforzato": 0xE539,
+    "dynamicPPP": 0xE52A, "dynamicFFF": 0xE530, "dynamicPPPP": 0xE529, "dynamicFFFF": 0xE531,
+    "dynamicSforzando1": 0xE536, "dynamicSforzatoFF": 0xE53B, "dynamicForzando": 0xE535,
+    "dynamicRinforzando1": 0xE53C, "dynamicRinforzando2": 0xE53D, "dynamicSforzatoPiano": 0xE53A,
+    "dynamicNiente": 0xE526,
     "stringsDownBow": 0xE610, "stringsUpBow": 0xE612,
 }
 

@@ -60,6 +60,10 @@
     dynamicSforzando: [0xE524, 0.832], dynamicZ: [0xE525, 0.956],
     dynamicPP: [0xE52B, 2.564], dynamicMP: [0xE52C, 2.784], dynamicMF: [0xE52D, 2.832], dynamicFF: [0xE52F, 2.352],
     dynamicFortePiano: [0xE534, 2.324], dynamicSforzato: [0xE539, 2.792],
+    dynamicPPP: [0xE52A, 3.86], dynamicFFF: [0xE530, 3.352], dynamicPPPP: [0xE529, 5.156], dynamicFFFF: [0xE531, 4.352],
+    dynamicSforzando1: [0xE536, 2.268], dynamicSforzatoFF: [0xE53B, 3.8], dynamicForzando: [0xE535, 1.852],
+    dynamicRinforzando1: [0xE53C, 2.344], dynamicRinforzando2: [0xE53D, 2.864], dynamicSforzatoPiano: [0xE53A, 4.048],
+    dynamicNiente: [0xE526, 1.02],
     stringsDownBow: [0xE610, 1.26], stringsUpBow: [0xE612, 1.048]
   };
 
@@ -313,7 +317,10 @@
   // Dynamics, using Leland's ready-made combinations.
   const DYNAMICS = {
     pp: 'dynamicPP', p: 'dynamicPiano', mp: 'dynamicMP', mf: 'dynamicMF', f: 'dynamicForte',
-    ff: 'dynamicFF', fp: 'dynamicFortePiano', sfz: 'dynamicSforzato', sfp: 'dynamicSforzandoPiano'
+    ff: 'dynamicFF', fp: 'dynamicFortePiano', sfz: 'dynamicSforzato', sfp: 'dynamicSforzandoPiano',
+    ppp: 'dynamicPPP', fff: 'dynamicFFF', pppp: 'dynamicPPPP', ffff: 'dynamicFFFF', sf: 'dynamicSforzando1',
+    sff: ['dynamicSforzando', 'dynamicFF'], sffz: 'dynamicSforzatoFF', fz: 'dynamicForzando', rf: 'dynamicRinforzando1',
+    rfz: 'dynamicRinforzando2', sfzp: 'dynamicSforzatoPiano', n: 'dynamicNiente'
   };
   function dynamic(str, cx, baseY, size) {
     return glyph(DYNAMICS[str], cx, baseY, { size: size, anchor: 'middle' });

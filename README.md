@@ -37,6 +37,7 @@ Only the open tab is played. Each tab has categories split into subcategories. N
   - **Tuplets & grace notes**: duplet, triplet, quintuplet, sextuplet, septuplet, grace notes, appoggiatura, acciaccatura
   - **Naming time signatures**: just a time signature; the class names it ("Three four", "Common time"). Includes 5/8, 10/8 and 11/8, which are only named, not played as rhythms.
 - **Note reading**
+  - **Five-line staff**: a plain staff (no clef) with an arrow pointing at a line or space; the class says "Line 1" to "Line 5" or "Space 1" to "Space 4", counting from the bottom. All nine are picked when you turn it on.
   - **Key signatures**: name the major key, from C through 6 sharps and 6 flats
   - **Scale degrees**: a note in a key (with its key signature); the class names its scale degree, shown as a number with a circumflex, like 3̂. Pick the degrees (1–7) and the keys (any major or minor key, default C major; minor keys use natural minor). One key is recommended; several keys is difficult.
   - **Intervals**: two notes from a key's scale, with its key signature, one after the other or together; the class names the interval ("Major 3rd"). Pick the intervals (unison to major 10th; the perfect unison, augmented 4th and perfect octave are called Unison, Tritone and Octave) and the keys.

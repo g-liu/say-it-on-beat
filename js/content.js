@@ -537,6 +537,27 @@
   ];
 
   /* =========================================================
+   * Five-line staff: name the line or space the arrow points at
+   * ========================================================= */
+
+  // [id, what the class says, staff position (0 = bottom line), group, detail]
+  const STAFF_SPOTS = [
+    ['line1', 'Line 1', 0, 'Lines', 'the bottom line'], ['line2', 'Line 2', 2, 'Lines', 'the 2nd line from the bottom'],
+    ['line3', 'Line 3', 4, 'Lines', 'the middle line'], ['line4', 'Line 4', 6, 'Lines', 'the 2nd line from the top'],
+    ['line5', 'Line 5', 8, 'Lines', 'the top line'],
+    ['space1', 'Space 1', 1, 'Spaces', 'the bottom space'], ['space2', 'Space 2', 3, 'Spaces', 'the 2nd space from the bottom'],
+    ['space3', 'Space 3', 5, 'Spaces', 'the 2nd space from the top'], ['space4', 'Space 4', 7, 'Spaces', 'the top space']
+  ].map(([id, say, pos, group, detail]) => ({ id: id, say: say, pos: pos, group: group, detail: detail }));
+  const STAFF_ARROW = { tip: 104, tail: 126, head: 9, half: 5 };
+  function staffSpotCard(pos) {
+    const y = N.posToY(pos, TOP), a = STAFF_ARROW;
+    return card(N.staff(8, 96, TOP) + N.line(a.tip + a.head - 1, y, a.tail, y, 2.4) +
+      N.fillPath('M' + a.tip + ',' + y + ' L' + (a.tip + a.head) + ',' + (y - a.half) + ' L' + (a.tip + a.head) + ',' + (y + a.half) + 'Z'));
+  }
+  const STAFF_SPOT_ITEMS = STAFF_SPOTS.map((s) => ({ id: 'staff-' + s.id, chip: s.say, group: s.group, svg: staffSpotCard(s.pos),
+    say: s.say, detail: s.detail }));
+
+  /* =========================================================
    * Key signatures and scale degrees
    * ========================================================= */
 
@@ -1600,6 +1621,8 @@
       itemSubcat({ id: 'timesigs', name: 'Naming time signatures', desc: 'Just a time signature: name it (“Three four”, “Common time”)' }, TIMESIG_ITEMS)
     ] },
     { id: 'reading', tab: 'cards', name: 'Note reading', subcats: [
+      itemSubcat({ id: 'staffspots', name: 'Five-line staff', desc: 'An arrow points at a line or space: name it (“Line 1”, “Space 4”), counting from the bottom' },
+        STAFF_SPOT_ITEMS),
       itemSubcat({ id: 'keysigs', name: 'Key signatures', desc: 'Name the major key' }, KEY_ITEMS),
       { id: 'degrees', name: 'Scale degrees', desc: 'Name the scale degree of each note. One key is recommended; more than one is difficult!',
         chips: DEGREE_IDS.map((d) => ({ id: d, label: 'Scale degree ' + d, html: degreeMark(d), cls: 'deg-chip' })),

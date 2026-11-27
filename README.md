@@ -21,7 +21,7 @@ The setup screen has two tabs:
 - **Notes, reading & markings**: everything you turn on here is mixed together in each round.
 - **Rhythms**: rhythm cards last a whole measure, so rhythms are practiced on their own.
 
-Only the open tab is played. Each tab has categories split into subcategories. Note values, rhythm values and markings are picked with buttons that show the symbols themselves (hover for the name). Tick a subcategory's checkbox to turn it on (it remembers what you picked last time, or starts with its defaults), pick individual items with the chips, or press **All** to pick every chip. When everything is already picked the button says **None** and clears the subcategory (an always-on one, like the rhythm note values, keeps one pick).
+Only the open tab is played. Each tab has categories split into subcategories. Note values, rhythm values and markings are picked with buttons that show the symbols themselves (hover for the name). Tick a subcategory's checkbox to turn it on (it remembers what you picked last time, or starts with its defaults), pick individual items with the chips, or press **All** to pick every chip. When everything is already picked the button says **None** and clears the subcategory (an always-on one, like the rhythm note values, keeps one pick). **Only** turns on just that subcategory and turns off every other one in the tab; each one remembers its picks, so ticking it again brings them back.
 
 - **Note names**
   - **Home position**: G A B C, D E F♯ G, A B C♯ D, E F♯ G♯ A B, on the strings you pick

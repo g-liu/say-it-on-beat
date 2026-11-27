@@ -237,6 +237,8 @@
       '<div class="subhead"><label>' + (sc.fixed ? '' : '<input type="checkbox" class="selall" data-sub="' + sc.id + '">') +
       '<span class="sub-name">' + sc.name + '</span></label>' +
       (sc.toggle ? '' : '<button type="button" class="sub-all" data-sub="' + sc.id + '">All</button>') +
+      (!sc.fixed && Picks.onlyMakesSense(tabSubs(sc.tab), sc.id)
+        ? '<button type="button" class="sub-all sub-only" data-sub="' + sc.id + '" title="Turn on just this, and turn off the rest of this tab">Only</button>' : '') +
       '<span class="sub-desc">' + sc.desc + '</span></div>' +
       (sc.toggle ? '' : chipsHtml(sc)) +
       '<div class="sub-extra" id="extra-' + sc.id + '">' + optionsHtml(sc) + keyPickerHtml(sc) + '</div>' +
@@ -333,7 +335,9 @@
       if (box) box.checked = n > 0;
       const el = document.querySelector('.subcat[data-sub="' + sc.id + '"]');
       if (el) el.classList.toggle('on', usable(sc.id).length > 0);
-      const all = document.querySelector('.sub-all[data-sub="' + sc.id + '"]');
+      const only = document.querySelector('.sub-only[data-sub="' + sc.id + '"]');
+      if (only) only.disabled = Picks.isOnlyOne(tabSubs(sc.tab), sc.id, settings.sel);
+      const all = document.querySelector('.sub-all:not(.sub-only)[data-sub="' + sc.id + '"]');
       if (all) {
         const none = Picks.allNoneLabel(picked(sc.id), pickable(sc)) === 'none';
         all.textContent = none ? 'None' : 'All';
@@ -439,6 +443,14 @@
         else list.push(keyChip.dataset.key);
         const order = Content.KEYS.map((k) => k.id);
         list.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+        changed();
+        return;
+      }
+      const only = e.target.closest('.sub-only');
+      if (only) {
+        const next = Picks.onlyPicks(tabSubs(Content.subById(only.dataset.sub).tab), only.dataset.sub, settings.sel, settings.lastSel, defaultChips);
+        settings.sel = next.sel;
+        settings.lastSel = next.lastSel;
         changed();
         return;
       }

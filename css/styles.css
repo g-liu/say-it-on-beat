@@ -337,6 +337,8 @@ body.has-keyboard .touch-only { display: none; }
 .beat-dots i.down.on { background: #fff; }
 .beat-dots i.long { width: 1.05em; border-radius: 0.35em; }
 .bpm { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 4.5em; text-align: right; white-space: nowrap; }
+.bpm-wrap { display: flex; flex-direction: column; align-items: flex-end; }
+.track-name { font-size: 0.5em; font-weight: 600; color: var(--muted); opacity: 0.8; white-space: nowrap; }
 
 .grid {
   flex: 1; min-height: 0;

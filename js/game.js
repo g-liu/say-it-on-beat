@@ -9,6 +9,7 @@
   'use strict';
 
   const Content = window.Content;
+  const Tracks = window.Soundtracks;
   const engine = new window.BeatEngine();
   const $ = (id) => document.getElementById(id);
 
@@ -42,6 +43,7 @@
     showAnswers: true,
     memory: false,
     volume: 0.8,
+    soundtrack: Tracks.DEFAULT,  // a soundtrack id, or 'random' (a new one each game)
     cardOrder: 'patterns',       // 'patterns' (easy → medium → hard → random) | 'random'
     // Diatonic note names
     pitchMode: 'scale',          // 'scale' | 'chromatic' | 'pick'
@@ -150,6 +152,7 @@
       out.scaleKey = DEFAULTS.scaleKey;
       out.scaleType = DEFAULTS.scaleType;
     }
+    if (!Tracks.isChoice(out.soundtrack)) out.soundtrack = DEFAULTS.soundtrack;
     out.clapVolume = clamp(out.clapVolume, 0.1, 1, DEFAULTS.clapVolume);
     out.bpm = clamp(out.bpm, MIN_START_BPM, MAX_START_BPM, DEFAULTS.bpm);
     out.speedUpPct = Math.round(clamp(out.speedUpPct, MIN_SPEED_PCT, MAX_SPEED_PCT, DEFAULTS.speedUpPct));
@@ -576,6 +579,13 @@
       saveSettings();
     });
 
+    const track = $('soundtrack');
+    track.innerHTML = Tracks.CHOICES.map((c) => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+    const showTrack = () => { $('soundtrackHint').textContent = Tracks.CHOICES.find((c) => c.id === settings.soundtrack).desc; };
+    track.value = settings.soundtrack;
+    showTrack();
+    track.addEventListener('change', () => { settings.soundtrack = track.value; showTrack(); saveSettings(); });
+
     const clapVol = $('clapVolume');
     const showClap = () => { $('clapVolumeOut').textContent = Math.round(settings.clapVolume * 100) + '%'; };
     clapVol.value = settings.clapVolume;
@@ -780,6 +790,7 @@
     const level = levelFor(roundIdx);
     return {
       roundIdx: roundIdx, group: group, rhythm: !!group.rhythm, meterId: meterId, base: base, meter: m,
+      even: lens.every((l) => l === lens[0]),
       cardLen: group.rhythm ? lens.reduce((a, b) => a + b, 0) : 1,
       level: level, beats: beats, bpm: bpm,
       // Cards that show notes take the clef for their position (alternating in a mixed class).
@@ -812,7 +823,7 @@
       const spb = 60 / (b.bpm || plan.bpm);
       const beatDur = spb * b.len;
       engine.playBeat({
-        t: t, spb: beatDur, sub: b.sub, barPos: b.barPos, meter: plan.meter, bar: game.bar, phase: b.phase,
+        t: t, spb: beatDur, sub: b.sub, barPos: b.barPos, meter: plan.meter, even: plan.even, bar: game.bar, phase: b.phase,
         fill: b.fill, crash: b.crash, bell: b.reveal != null ? b.reveal : null,
         // Quieter groove while the computer claps, so the claps are easy to hear.
         duck: b.phase === 'say' && plan.rhythm && settings.clap
@@ -944,6 +955,10 @@
     engine.init();
     engine.setVolume(settings.volume);
     engine.setClapVolume(settings.clapVolume);
+    // Random picks a soundtrack for the whole game (a different one from the last game).
+    game.soundtrack = Tracks.pick(settings.soundtrack, Math.random, game.soundtrack);
+    engine.setSoundtrack(game.soundtrack);
+    $('trackLabel').textContent = '♪ ' + Tracks.byId(game.soundtrack).name;
     engine.newBus();
     game.groups = buildGroups();
     game.started = true;

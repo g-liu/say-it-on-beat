@@ -1,19 +1,15 @@
 /*
- * audio.js — a small Web Audio drum machine and bass for the backing track.
- * Every sound is synthesized, so there are no audio files to load.
+ * audio.js — a small Web Audio drum machine, bass and chords for the backing track.
+ * Every sound is synthesized, so there are no audio files to load. The music itself
+ * (patterns, chords, instruments) is data in js/soundtracks.js; this file has the
+ * synth voices and plays one beat at a time.
  */
 (function (global) {
   'use strict';
 
   const Ctx = global.AudioContext || global.webkitAudioContext;
+  const TRACKS = global.Soundtracks;
 
-  // I – V – vi – IV in D major (violin-friendly). Bass root and triad for each bar.
-  const PROGRESSION = [
-    { bass: 73.42, chord: [293.66, 369.99, 440.0] },    // D
-    { bass: 55.0, chord: [277.18, 329.63, 440.0] },     // A
-    { bass: 61.74, chord: [293.66, 369.99, 493.88] },   // Bm
-    { bass: 49.0, chord: [293.66, 392.0, 493.88] }      // G
-  ];
   /*
    * Output levels. Everything goes through a compressor and then a hard ceiling at 0.99, so the
    * output never reaches full scale (1.0). The clap has its own volume, separate from the music:
@@ -24,8 +20,7 @@
   const CLAP_GAIN_FULL = 0.565;
   const MIN_CLAP_VOLUME = 0.1;
 
-  // Pentatonic bells for each card as it appears.
-  const BELLS = [587.33, 659.25, 739.99, 880.0, 987.77, 1174.66, 1318.51, 1479.98];
+  const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
   function Engine() {
     this.ctx = null;
@@ -35,6 +30,8 @@
     this.volume = 0.8;
     this.level = 1;          // scales the groove; lowered while the computer claps
     this.clapVolume = 1;     // 0.1 to 1 (10% to 100%)
+    this.track = TRACKS.byId(TRACKS.DEFAULT);
+    this.waves = {};
   }
 
   // A hard limit: the waveshaper passes everything below the ceiling unchanged and flattens anything above it.
@@ -88,9 +85,15 @@
       setTimeout(() => { try { old.disconnect(); } catch (e) { /* already gone */ } }, 120);
     });
     this.bus = this.ctx.createGain();
+    this.bus.gain.value = this.track.gain;
     this.bus.connect(this.master);
     this.clapBus = this.ctx.createGain();
     this.clapBus.connect(this.clapMaster);
+  };
+
+  Engine.prototype.setSoundtrack = function (id) {
+    this.track = TRACKS.byId(id);
+    if (this.bus) this.bus.gain.setValueAtTime(this.track.gain, this.ctx.currentTime);
   };
 
   // Clap volume, 0.1 (10%) to 1 (100%).
@@ -104,6 +107,8 @@
     if (this.master) this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.02);
   };
 
+  /* ---------------- building blocks ---------------- */
+
   Engine.prototype.env = function (t, peak, attack, decay) {
     const gn = this.ctx.createGain();
     gn.gain.setValueAtTime(0.0001, t);
@@ -111,6 +116,27 @@
     gn.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
     gn.connect(this.bus);
     return gn;
+  };
+
+  // Attack, decay to a sustain level, hold until `dur`, release. Returns { node, end }.
+  Engine.prototype.shape = function (t, peak, p, dur) {
+    const gn = this.ctx.createGain();
+    const top = Math.max(0.0002, peak * this.level);
+    const attack = p.attack || 0.004, decay = p.decay || 0.3, sustain = p.sustain || 0, release = p.release || 0.05;
+    gn.gain.setValueAtTime(0.0001, t);
+    gn.gain.linearRampToValueAtTime(top, t + attack);
+    let end;
+    if (sustain > 0) {
+      gn.gain.setTargetAtTime(top * sustain, t + attack, decay / 3);
+      const off = Math.max(t + attack, t + dur);
+      gn.gain.setTargetAtTime(0.0001, off, release / 3);
+      end = off + release * 2;
+    } else {
+      gn.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
+      end = t + attack + decay;
+    }
+    gn.connect(this.bus);
+    return { node: gn, end: end };
   };
 
   Engine.prototype.noiseSrc = function (t, dur) {
@@ -121,112 +147,289 @@
     return src;
   };
 
-  Engine.prototype.kick = function (t, v) {
-    const osc = this.ctx.createOscillator();
-    osc.frequency.setValueAtTime(150, t);
-    osc.frequency.exponentialRampToValueAtTime(42, t + 0.13);
-    osc.connect(this.env(t, v || 1, 0.003, 0.38));
-    osc.start(t);
-    osc.stop(t + 0.42);
-    const click = this.noiseSrc(t, 0.02);
-    const hp = this.ctx.createBiquadFilter();
-    hp.type = 'highpass';
-    hp.frequency.value = 2500;
-    click.connect(hp);
-    hp.connect(this.env(t, 0.25 * (v || 1), 0.001, 0.015));
+  Engine.prototype.filter = function (type, freq, q) {
+    const f = this.ctx.createBiquadFilter();
+    f.type = type;
+    f.frequency.value = freq;
+    if (q != null) f.Q.value = q;
+    return f;
   };
 
-  Engine.prototype.snare = function (t, v) {
-    v = v || 0.7;
-    const n = this.noiseSrc(t, 0.25);
-    const bp = this.ctx.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = 1900;
-    bp.Q.value = 0.7;
-    n.connect(bp);
-    bp.connect(this.env(t, v, 0.002, 0.2));
-    const osc = this.ctx.createOscillator();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(220, t);
-    osc.frequency.exponentialRampToValueAtTime(160, t + 0.08);
-    osc.connect(this.env(t, v * 0.6, 0.002, 0.09));
-    osc.start(t);
-    osc.stop(t + 0.12);
+  // A pulse wave (duty 0.5 is a square), as a cached PeriodicWave.
+  Engine.prototype.pulseWave = function (duty) {
+    const key = String(duty);
+    if (this.waves[key]) return this.waves[key];
+    const n = 64;
+    const real = new Float32Array(n), imag = new Float32Array(n);
+    for (let k = 1; k < n; k++) {
+      const a = (2 / (k * Math.PI)) * Math.sin(Math.PI * k * duty);
+      real[k] = a * Math.cos(Math.PI * k * duty);
+      imag[k] = a * Math.sin(Math.PI * k * duty);
+    }
+    this.waves[key] = this.ctx.createPeriodicWave(real, imag);
+    return this.waves[key];
   };
 
-  Engine.prototype.hat = function (t, v, open) {
-    const n = this.noiseSrc(t, open ? 0.3 : 0.06);
-    const hp = this.ctx.createBiquadFilter();
-    hp.type = 'highpass';
-    hp.frequency.value = 7500;
-    n.connect(hp);
-    hp.connect(this.env(t, v || 0.25, 0.001, open ? 0.25 : 0.045));
+  Engine.prototype.osc = function (type, freq, t, end, duty) {
+    const o = this.ctx.createOscillator();
+    if (type === 'pulse') o.setPeriodicWave(this.pulseWave(duty || 0.25));
+    else o.type = type;
+    o.frequency.value = freq;
+    o.start(t);
+    o.stop(end + 0.02);
+    return o;
   };
 
-  Engine.prototype.crash = function (t, v) {
-    const n = this.noiseSrc(t, 1.6);
-    const hp = this.ctx.createBiquadFilter();
-    hp.type = 'highpass';
-    hp.frequency.value = 4200;
-    n.connect(hp);
-    hp.connect(this.env(t, v || 0.35, 0.002, 1.4));
+  function driveCurve(k) {
+    const n = 1024, curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * 2 - 1;
+      curve[i] = Math.tanh(k * x) / Math.tanh(k);
+    }
+    return curve;
+  }
+
+  /* ---------------- voices ----------------
+   * Each voice is (engine, t, level, params, extra) where params come from the soundtrack's
+   * voice definition and extra is { freqs, dur, accent, mult } for pitched voices.
+   */
+  const VOICES = {
+    kick(e, t, v, p) {
+      const decay = p.decay || 0.38;
+      const o = e.osc(p.type || 'sine', p.f0 || 150, t, t + decay + 0.04);
+      o.frequency.setValueAtTime(p.f0 || 150, t);
+      o.frequency.exponentialRampToValueAtTime(p.f1 || 42, t + (p.bend || 0.13));
+      o.connect(e.env(t, v, 0.003, decay));
+      const click = p.click == null ? 0.25 : p.click;
+      if (click) {
+        const hp = e.filter('highpass', 2500);
+        e.noiseSrc(t, 0.02).connect(hp);
+        hp.connect(e.env(t, click * v, 0.001, 0.015));
+      }
+    },
+
+    snare(e, t, v, p) {
+      const bp = e.filter(p.filter || 'bandpass', p.bp || 1900, p.q || 0.7);
+      e.noiseSrc(t, (p.decay || 0.2) + 0.05).connect(bp);
+      bp.connect(e.env(t, v, 0.002, p.decay || 0.2));
+      const tone = p.tone == null ? 0.6 : p.tone;
+      if (tone) {
+        const o = e.osc('triangle', p.f0 || 220, t, t + 0.12);
+        o.frequency.setValueAtTime(p.f0 || 220, t);
+        o.frequency.exponentialRampToValueAtTime(p.f1 || 160, t + 0.08);
+        o.connect(e.env(t, v * tone, 0.002, 0.09));
+      }
+    },
+
+    hat(e, t, v, p) {
+      const decay = p.decay || (p.open ? 0.25 : 0.045);
+      const hp = e.filter('highpass', p.freq || 7500);
+      e.noiseSrc(t, decay + 0.05).connect(hp);
+      hp.connect(e.env(t, v, 0.001, decay));
+    },
+
+    // Six detuned square waves through a highpass: hi-hats, rides and crashes with a metallic ring.
+    cymbal(e, t, v, p) {
+      const decay = p.decay || 0.05;
+      const hp = e.filter('highpass', p.cutoff || 7000);
+      const bp = e.filter('bandpass', p.band || 10000, 0.6);
+      const out = e.env(t, v, 0.001, decay);
+      [205.3, 304.4, 369.6, 522.7, 540, 800].forEach((f) => {
+        e.osc('square', f * (p.mult || 1), t, t + decay + 0.05).connect(hp);
+      });
+      hp.connect(bp);
+      bp.connect(out);
+      const n = e.filter('highpass', 6000);
+      e.noiseSrc(t, decay + 0.05).connect(n);
+      n.connect(e.env(t, v * (p.noise == null ? 0.5 : p.noise), 0.001, decay * 0.7));
+    },
+
+    crash(e, t, v, p) {
+      const hp = e.filter('highpass', p.freq || 4200);
+      e.noiseSrc(t, (p.decay || 1.4) + 0.2).connect(hp);
+      hp.connect(e.env(t, v, 0.002, p.decay || 1.4));
+    },
+
+    handclap(e, t, v, p) {
+      const bp = e.filter('bandpass', p.freq || 1200, 0.8);
+      bp.connect(e.bus);
+      [0, 0.009, 0.019, 0.03].forEach((dt, i) => {
+        const last = i === 3;
+        const g = e.ctx.createGain();
+        const peak = Math.max(0.0002, v * e.level * (last ? 1 : 0.7));
+        g.gain.setValueAtTime(0.0001, t + dt);
+        g.gain.exponentialRampToValueAtTime(peak, t + dt + 0.001);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dt + (last ? (p.decay || 0.16) : 0.012));
+        e.noiseSrc(t + dt, last ? 0.25 : 0.03).connect(g);
+        g.connect(bp);
+      });
+    },
+
+    // Wood and rims: a short pitched click (clave, woodblock, cross-stick).
+    wood(e, t, v, p) {
+      const decay = p.decay || 0.05;
+      const o = e.osc(p.type || 'sine', p.freq || 2500, t, t + decay + 0.02);
+      o.connect(e.env(t, v, 0.001, decay));
+      if (p.noise) {
+        const bp = e.filter('bandpass', p.freq || 2500, 2);
+        e.noiseSrc(t, 0.03).connect(bp);
+        bp.connect(e.env(t, v * p.noise, 0.001, 0.02));
+      }
+    },
+
+    // Drums with a pitch: toms, congas, the kendang. extra.mult bends the pitch (for fills).
+    tom(e, t, v, p, x) {
+      const f = (p.freq || 120) * ((x && x.mult) || 1);
+      const decay = p.decay || 0.3;
+      const o = e.osc('sine', f, t, t + decay + 0.04);
+      o.frequency.setValueAtTime(f, t);
+      o.frequency.exponentialRampToValueAtTime(f * (p.drop || 0.6), t + (p.bend || 0.1));
+      o.connect(e.env(t, v, 0.002, decay));
+      if (p.slap) {
+        const bp = e.filter('bandpass', f * 6, 1.2);
+        e.noiseSrc(t, 0.05).connect(bp);
+        bp.connect(e.env(t, v * p.slap, 0.001, 0.04));
+      }
+    },
+
+    cowbell(e, t, v, p) {
+      const k = p.mult || 1, decay = p.decay || 0.25;
+      const bp = e.filter('bandpass', 900 * k, 2.5);
+      bp.connect(e.env(t, v, 0.001, decay));
+      [540, 800].forEach((f) => e.osc('square', f * k, t, t + decay + 0.05).connect(bp));
+    },
+
+    shaker(e, t, v, p) {
+      const hp = e.filter('bandpass', p.freq || 7000, 0.9);
+      e.noiseSrc(t, 0.1).connect(hp);
+      const g = e.ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(Math.max(0.0002, v * e.level), t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + (p.decay || 0.07));
+      hp.connect(g);
+      g.connect(e.bus);
+    },
+
+    // Count-in stick; extra.accent for the downbeat.
+    stick(e, t, v, p, x) {
+      const accent = x && x.accent;
+      const f = (p.freq || 1320) * (accent ? 4 / 3 : 1);
+      const bp = e.filter('bandpass', f, 6);
+      e.osc('square', f, t, t + 0.07).connect(bp);
+      bp.connect(e.env(t, v * (accent ? 0.7 : 0.5), 0.001, 0.05));
+    },
+
+    /*
+     * A pitched synth note or chord: oscillators (p.osc), an optional drive, a filter with a sweep,
+     * and an attack-decay-sustain-release envelope. p.strum staggers the notes of a chord.
+     */
+    tone(e, t, v, p, x) {
+      const oscs = p.osc || [{ type: p.type || 'square' }];
+      const env = p.decay == null && !p.sustain ? Object.assign({}, p, { decay: x.dur }) : p;
+      x.freqs.forEach((freq, i) => {
+        const at = t + i * (p.strum || 0);
+        const sh = e.shape(at, v, env, Math.max(0.01, x.dur - i * (p.strum || 0)));
+        let head = sh.node;
+        if (p.cutoff) {
+          const f = e.filter(p.filter || 'lowpass', p.cutoff, p.q == null ? 1 : p.q);
+          if (p.sweep) {
+            f.frequency.setValueAtTime(p.cutoff, at);
+            f.frequency.exponentialRampToValueAtTime(p.sweep, at + (p.sweepTime || x.dur));
+          }
+          f.connect(head);
+          head = f;
+        }
+        if (p.drive) {
+          const ws = e.ctx.createWaveShaper();
+          ws.curve = driveCurve(p.drive);
+          ws.connect(head);
+          head = ws;
+        }
+        const norm = 1 / Math.sqrt(oscs.length);
+        oscs.forEach((o) => {
+          const osc = e.osc(o.type, freq * (o.mult || 1), at, sh.end, o.duty);
+          if (o.detune) osc.detune.value = o.detune;
+          const g = e.ctx.createGain();
+          g.gain.value = norm * (o.gain == null ? 1 : o.gain);
+          osc.connect(g);
+          g.connect(head);
+        });
+      });
+    },
+
+    // FM: electric piano (ratio 1), vibraphone and glockenspiel (ratio 3.5 to 4), marimba, celesta.
+    fm(e, t, v, p, x) {
+      const freqs = x && x.freqs ? x.freqs : [p.freq || 880];
+      const dur = x && x.dur ? x.dur : 0.3;
+      freqs.forEach((f, i) => {
+        const at = t + i * (p.strum || 0);
+        const sh = e.shape(at, v, { attack: p.attack || 0.002, decay: p.decay || 1, sustain: p.sustain || 0,
+          release: p.release || 0.2 }, dur);
+        const car = e.osc('sine', f, at, sh.end);
+        const mod = e.osc('sine', f * (p.ratio || 1), at, sh.end);
+        const mg = e.ctx.createGain();
+        const idx = (p.index || 1) * f;
+        mg.gain.setValueAtTime(idx, at);
+        mg.gain.exponentialRampToValueAtTime(Math.max(0.01, idx * (p.indexEnd || 0.15)), at + (p.bright || 0.25));
+        mod.connect(mg);
+        mg.connect(car.frequency);
+        car.connect(sh.node);
+      });
+    },
+
+    // Metallophones (saron, bonang, kenong): inharmonic partials that ring and fade.
+    metal(e, t, v, p, x) {
+      const freqs = x && x.freqs ? x.freqs : [p.freq || 600];
+      const partials = p.partials || [[1, 1], [2.76, 0.35], [5.4, 0.12]];
+      const decay = p.decay || 1.2;
+      freqs.forEach((f) => {
+        partials.forEach(([mult, amp], i) => {
+          const d = decay / (1 + i * 1.5);
+          e.osc('sine', f * mult, t, t + d + 0.05).connect(e.env(t, v * amp, 0.002, d));
+        });
+        const bp = e.filter('bandpass', f * 4, 1.5);
+        e.noiseSrc(t, 0.03).connect(bp);
+        bp.connect(e.env(t, v * 0.25, 0.001, 0.02));
+      });
+    },
+
+    // A gong: a low tone and a slightly detuned twin (it beats slowly), with a softer metallic overtone.
+    gong(e, t, v, p, x) {
+      const f = x && x.freqs ? x.freqs[0] : (p.freq || 55);
+      const decay = p.decay || 3;
+      [[1, 1], [1.006, 0.7], [2.02, 0.25], [2.97, 0.12]].forEach(([mult, amp], i) => {
+        const o = e.osc('sine', f * mult, t, t + decay + 0.1);
+        o.connect(e.env(t, v * amp, i ? 0.03 : 0.008, decay / (1 + i * 0.6)));
+      });
+    },
+
+    // An 8-bit coin: a short blip, then the same note a 4th higher.
+    coin(e, t, v, p, x) {
+      const f = x && x.freqs ? x.freqs[0] : 988;
+      [[0, 1, 0.07], [0.07, 4 / 3, 0.3]].forEach(([dt, mult, dur]) => {
+        const o = e.osc('pulse', f * mult, t + dt, t + dt + dur, 0.5);
+        o.connect(e.env(t + dt, v, 0.002, dur));
+      });
+    },
+
+    // The original bell: a triangle with a sine an octave up.
+    bell(e, t, v, p, x) {
+      const f = x && x.freqs ? x.freqs[0] : 880;
+      [1, 2].forEach((mult, i) => {
+        const o = e.osc(i ? 'sine' : 'triangle', f * mult, t, t + 0.4);
+        o.connect(e.env(t, v / (i + 1), 0.003, 0.35));
+      });
+    }
   };
 
-  Engine.prototype.bass = function (t, freq, dur, v) {
-    const osc = this.ctx.createOscillator();
-    osc.type = 'sawtooth';
-    osc.frequency.value = freq;
-    const lp = this.ctx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.Q.value = 5;
-    lp.frequency.setValueAtTime(900, t);
-    lp.frequency.exponentialRampToValueAtTime(220, t + dur);
-    osc.connect(lp);
-    lp.connect(this.env(t, v || 0.35, 0.005, dur));
-    osc.start(t);
-    osc.stop(t + dur + 0.05);
+  // Play one of the soundtrack's voices (by slot name) at a level from 0 to 1.
+  Engine.prototype.hit = function (slot, t, level, extra) {
+    const p = this.track.voices[slot];
+    if (!p || level <= 0) return;
+    VOICES[p.voice](this, t, level * (p.gain == null ? 1 : p.gain), p, extra || {});
   };
 
-  Engine.prototype.stab = function (t, freqs, dur, v) {
-    const out = this.env(t, v || 0.12, 0.004, dur);
-    const lp = this.ctx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 2400;
-    lp.connect(out);
-    freqs.forEach((f) => {
-      const osc = this.ctx.createOscillator();
-      osc.type = 'square';
-      osc.frequency.value = f;
-      osc.connect(lp);
-      osc.start(t);
-      osc.stop(t + dur + 0.05);
-    });
-  };
-
-  Engine.prototype.bell = function (t, freq, v) {
-    [1, 2].forEach((mult, i) => {
-      const osc = this.ctx.createOscillator();
-      osc.type = i ? 'sine' : 'triangle';
-      osc.frequency.value = freq * mult;
-      osc.connect(this.env(t, (v || 0.3) / (i + 1), 0.003, 0.35));
-      osc.start(t);
-      osc.stop(t + 0.4);
-    });
-  };
-
-  Engine.prototype.stick = function (t, accent) {
-    const osc = this.ctx.createOscillator();
-    osc.type = 'square';
-    osc.frequency.value = accent ? 1760 : 1320;
-    const bp = this.ctx.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = accent ? 1760 : 1320;
-    bp.Q.value = 6;
-    osc.connect(bp);
-    bp.connect(this.env(t, accent ? 0.7 : 0.5, 0.001, 0.05));
-    osc.start(t);
-    osc.stop(t + 0.07);
-  };
+  Engine.prototype.stick = function (t, accent) { VOICES.stick(this, t, 1, {}, { accent: accent }); };
 
   // A hand clap: quick noise bursts and a short tail, a body band plus a bright snap, loud
   // enough to stand out over the groove.
@@ -259,15 +462,10 @@
     });
   };
 
-  // What each beat of the bar does, by number of beats: K = strong kick, k = kick, S = snare, s = light snare.
-  const ROLES = {
-    1: ['K'], 2: ['K', 'S'], 3: ['K', 's', 's'], 4: ['K', 'S', 'k', 'S'], 5: ['K', 's', 's', 'k', 'S']
-  };
-
   /*
    * One beat of the groove.
    * b = { t, spb (seconds in this beat), barPos, meter (beats per bar), sub (2 or 3 divisions),
-   *       bar, phase, fill, crash, bell, duck }
+   *       even (all beats in the bar the same length), bar, phase, fill, crash, bell, duck }
    *   phase: 'count' | 'reveal' | 'say' | 'review' | 'break' | 'end'
    *   duck: play the groove quieter so claps stand out
    */
@@ -277,62 +475,45 @@
   };
 
   Engine.prototype.playBeatInner = function (b) {
+    const tr = this.track;
     const t = b.t, spb = b.spb;
-    const sub = b.sub || 2, step = spb / sub;
-    const chord = PROGRESSION[b.bar % PROGRESSION.length];
-    const down = b.barPos === 0;
+    const sub = b.sub || 2;
     const meter = b.meter || 4;
+    const prog = tr.progression;
 
     if (b.phase === 'count') {
-      this.stick(t, down);
-      for (let j = 1; j < sub; j++) this.hat(t + j * step, 0.12);
+      this.hit('count', t, 1, { accent: b.barPos === 0 });
+      for (let j = 1; j < sub; j++) this.hit('countSub', t + (j * spb) / sub, 1);
       return;
     }
     if (b.phase === 'end') {
-      this.kick(t, 1);
-      this.crash(t, 0.45);
-      this.bass(t, chord.bass, spb * 2.5, 0.4);
-      this.stab(t, PROGRESSION[0].chord, spb * 2.5, 0.14);
+      const end = tr.end;
+      const hold = spb * end.beats;
+      this.hit('kick', t, end.kick);
+      this.hit('crash', t, end.crash);
+      const tonic = TRACKS.chordAt(tr, 0);
+      TRACKS.endNotes(tr, tonic).forEach((n) => this.hit(n.slot, t, n.level, { freqs: n.midis.map(mtof), dur: hold }));
       return;
     }
 
+    if (b.crash) this.hit('crash', t, 1);
     const chill = b.phase === 'review' || b.phase === 'break';
-    if (b.crash) this.crash(t);
+    const events = TRACKS.beatEvents(tr, {
+      meter: meter, sub: sub, barPos: b.barPos, bar: b.bar || 0, even: b.even !== false, phase: b.phase, chill: chill,
+      chord: TRACKS.chordAt(tr, b.bar || 0), next: TRACKS.chordAt(tr, (b.bar || 0) + 1)
+    });
+    events.forEach((ev) => {
+      this.hit(ev.slot, t + ev.at * spb, ev.level, ev.midis ? { freqs: ev.midis.map(mtof), dur: ev.dur * spb } : null);
+    });
 
-    // Drums
-    const role = (ROLES[meter] || ROLES[4])[b.barPos % (ROLES[meter] || ROLES[4]).length];
-    const duple = meter === 2 || meter === 4;
-    if (role === 'K') this.kick(t, 1);
-    else if (role === 'k') this.kick(t, chill ? 0.7 : 0.85);
-    else if (!chill && duple) this.kick(t, 0.6);
-    else if (!chill) this.kick(t, 0.45);
-    if (role === 'S') this.snare(t, chill ? 0.4 : 0.75);
-    else if (role === 's') this.snare(t, chill ? 0.25 : 0.45);
-    for (let j = 0; j < sub; j++) {
-      const open = j === sub - 1 && b.phase === 'say' && b.barPos === meter - 1;
-      this.hat(t + j * step, j === 0 ? (chill ? 0.1 : 0.16) : (chill ? 0.14 : 0.24), open);
-    }
+    if (b.bell != null) this.hit('bell', t, 1, { freqs: [mtof(tr.bells[b.bell % tr.bells.length])], dur: spb });
 
-    // Bass and chords
-    if (meter === 3 && sub === 2) {
-      // Waltz: bass on 1, chords on 2 and 3.
-      if (down) this.bass(t, chord.bass * 2, spb * 0.9, 0.38);
-      else this.stab(t, chord.chord, spb * 0.35, chill ? 0.06 : 0.09);
-    } else {
-      this.bass(t, chord.bass * 2, step * 0.85, 0.36);
-      if (!chill) this.bass(t + (sub - 1) * step, chord.bass * 4, step * 0.6, 0.22);
-      if (role === 'S' || role === 's') this.stab(t + (sub - 1) * step, chord.chord, step * 0.6, chill ? 0.06 : 0.1);
-    }
-
-    if (b.bell != null) this.bell(t, BELLS[b.bell % BELLS.length]);
-
-    // A snare fill leading into the next section.
-    if (b.fill) {
-      for (let i = 0; i < 4; i++) this.snare(t + (i * spb) / 4, 0.3 + i * 0.15);
-    }
+    // A fill leading into the next section.
+    if (b.fill) tr.fill.forEach(([at, slot, level, mult]) => this.hit(slot, t + at * spb, level, { mult: mult }));
   };
 
   Engine.CLAP_GAIN_FULL = CLAP_GAIN_FULL;
   Engine.PEAK_CEILING = PEAK_CEILING;
+  Engine.VOICES = VOICES;
   global.BeatEngine = Engine;
 })(window);

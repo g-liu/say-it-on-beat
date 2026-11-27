@@ -6,7 +6,8 @@
   (BeatEngine.init) and prints their peaks. Open this file in a browser.
   Used to set CLAP_GAIN_FULL in js/audio.js so a clap at 100% peaks at 0.99.
 -->
-<pre id="out">Measuring…</pre>
+<pre id="out">Measuring… (open with #tracks at the end of the address to measure every soundtrack)</pre>
+<script src="../js/soundtracks.js"></script>
 <script src="../js/audio.js"></script>
 <script>
   'use strict';
@@ -30,7 +31,81 @@
     for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
     return peak;
   }
+  const SHAPES = { '4/4': [4, 2], '3/4': [3, 2], '6/8': [2, 3] };
+  // A short game with one soundtrack: count-in, reveal with bells and a fill, say (with a crash), answers, end.
+  // Returns the peak of everything and the peak and RMS of the "say" bars.
+  async function measureTrack(id, shape, opts) {
+    opts = opts || {};
+    const [meter, sub] = SHAPES[shape || '4/4'];
+    const spb = 60 / (opts.bpm || 100);
+    const phases = [].concat(Array(meter).fill('count'), Array(meter * 2).fill('reveal'), Array(meter * 4).fill('say'),
+      Array(meter * 2).fill('review'), ['end']);
+    const dur = phases.length * spb + 4;
+    const ctx = new OfflineAudioContext(1, Math.ceil(RATE * dur), RATE);
+    const e = new BeatEngine();
+    e.volume = opts.music == null ? 0.8 : opts.music;
+    e.track = Soundtracks.byId(id);
+    e.init(ctx);
+    const sayFrom = (meter * 3) * spb + 0.2, sayTo = sayFrom + meter * 4 * spb;
+    phases.forEach((phase, i) => {
+      const barPos = i % meter;
+      e.playBeat({ t: 0.2 + i * spb, spb: spb, sub: sub, barPos: barPos, meter: meter, even: true, bar: Math.floor(i / meter),
+        phase: phase, bell: phase === 'reveal' ? i - meter : null, fill: i === meter * 3 - 1, crash: i === meter * 3 });
+    });
+    const buf = await ctx.startRendering();
+    const d = buf.getChannelData(0);
+    const w = weighted(d);
+    let peak = 0, sayPeak = 0, sum = 0, wsum = 0, n = 0;
+    const a = Math.floor(sayFrom * RATE), b = Math.floor(sayTo * RATE);
+    for (let i = 0; i < d.length; i++) {
+      const x = Math.abs(d[i]);
+      if (x > peak) peak = x;
+      if (i >= a && i < b) { sum += x * x; wsum += w[i] * w[i]; n++; if (x > sayPeak) sayPeak = x; }
+    }
+    return { peak: peak, sayPeak: sayPeak, rms: Math.sqrt(sum / n), loud: Math.sqrt(wsum / n) };
+  }
+  // Roughly how loud it sounds (like the K-weighting in loudness meters): less bass, a little more treble.
+  function biquad(x, c) {
+    const y = new Float32Array(x.length);
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (let i = 0; i < x.length; i++) {
+      const v = (c.b0 * x[i] + c.b1 * x1 + c.b2 * x2 - c.a1 * y1 - c.a2 * y2) / c.a0;
+      x2 = x1; x1 = x[i]; y2 = y1; y1 = v; y[i] = v;
+    }
+    return y;
+  }
+  function weighted(x) {
+    const hpW = 2 * Math.PI * 100 / RATE, hpA = Math.sin(hpW) / (2 * 0.5), hc = Math.cos(hpW);
+    const hp = { b0: (1 + hc) / 2, b1: -(1 + hc), b2: (1 + hc) / 2, a0: 1 + hpA, a1: -2 * hc, a2: 1 - hpA };
+    const A = Math.pow(10, 4 / 40), sw = 2 * Math.PI * 1500 / RATE, sc = Math.cos(sw), sa = Math.sin(sw) / 2 * Math.SQRT2;
+    const sh = { b0: A * ((A + 1) + (A - 1) * sc + 2 * Math.sqrt(A) * sa), b1: -2 * A * ((A - 1) + (A + 1) * sc),
+      b2: A * ((A + 1) + (A - 1) * sc - 2 * Math.sqrt(A) * sa), a0: (A + 1) - (A - 1) * sc + 2 * Math.sqrt(A) * sa,
+      a1: 2 * ((A - 1) - (A + 1) * sc), a2: (A + 1) - (A - 1) * sc - 2 * Math.sqrt(A) * sa };
+    return biquad(biquad(x, hp), sh);
+  }
+  window.measureTrack = measureTrack;
+
+  async function soundtrackLines() {
+    const out = [];
+    for (const tr of Soundtracks.LIST) {
+      const parts = [];
+      for (const shape of Object.keys(SHAPES)) {
+        const m = await measureTrack(tr.id, shape);
+        parts.push(shape + ' peak ' + m.peak.toFixed(3) + ' loudness ' + m.loud.toFixed(3));
+      }
+      const loud = await measureTrack(tr.id, '4/4', { music: 1, bpm: 180 });
+      out.push(tr.name.padEnd(12) + parts.join(' · ') + ' · volume 100% at 180 BPM peak ' + loud.peak.toFixed(3));
+    }
+    return out;
+  }
+  window.soundtrackLines = soundtrackLines;
+
   (async () => {
+    if (location.hash === '#tracks') {
+      window.RESULT = await soundtrackLines();
+      document.getElementById('out').textContent = window.RESULT.join('\n');
+      return;
+    }
     const lines = [];
     const full = BeatEngine.CLAP_GAIN_FULL;
     // Find the clap gain where 40 claps on their own peak at 0.99 (before the ceiling).

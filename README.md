@@ -78,6 +78,8 @@ Hold <kbd>Shift</kbd> and click a button to pick (or clear) every button from th
 
 You can switch to random every round instead. The current level shows under the round number.
 
+**Soundtrack.** Pick the backing music in Options: **Classic** (the original drums, synth bass and chords, and the default), **Retro 8-bit** (chiptune arpeggios and noise drums), **Funk**, **70s disco**, **Jazz swing** (ride cymbal, walking bass, electric piano), **Salsa** (clave, congas, cowbell, piano montuno), **Bossa nova**, **Gamelan** (slendro tuning, saron, bonang, kendang and gongs), **Lo-fi**, **Rock** and **Reggae**, or **Random**, which picks one at Start and keeps it for the whole game (the next game gets a different one). Every soundtrack follows the time signature (including 7/8's long last beat and compound meters), has its own count-in, reveal bells, fills and ending, and they're balanced to sound about equally loud. The soundtrack's name shows small under the tempo while you play.
+
 Options: starting tempo (40–220 BPM), number of rounds, speed up each round by a percentage (1–25%, default 5%, up to 400 BPM; the groove eases up to the new tempo during the answers, so the next round starts right on it), show answers, and memory mode, where cards flip face down before the class says them. Settings are saved in the browser.
 
 **Preview cards** shows every card in the selected categories with its answer.
@@ -109,8 +111,9 @@ The on-screen controls hide while the game is running. Move the mouse to bring t
 - `vendor/leland`: the [Leland](https://github.com/MuseScoreFonts/Leland) font, as a git submodule
 - `js/theory.js`: spelling notes, keys, intervals, chords and cadences (no drawing). `node tools/check_theory.js` prints every chord, cadence and interval answer for checking.
 - `js/content.js`: the categories, subcategories and cards, and the rhythm generator
-- `js/audio.js`: drum machine, bass, chords and clap, following the time signature. Everything passes a compressor and a hard ceiling at 0.99, so the output never reaches full scale.
-- `tools/measure_audio.html`: open it in a browser to measure the clap and music peaks (used to set the clap's 100% level)
+- `js/soundtracks.js`: the soundtracks as data (chord progression, instruments, drum and bass patterns for each kind of beat, fills, bells) and the functions that turn a beat into notes. To add a soundtrack, add an object to `LIST`, run `node tools/check_soundtracks.js`, and set its loudness in `LOUDNESS_GAIN`.
+- `js/audio.js`: the synth voices (drums, bass, pads, FM pianos and bells, metallophones, gongs) and the clap. Everything passes a compressor and a hard ceiling at 0.99, so the output never reaches full scale.
+- `tools/measure_audio.html`: open it in a browser to measure the clap and music peaks (used to set the clap's 100% level); add `#tracks` to the address to measure every soundtrack's peak and loudness
 - `js/game.js`: setup screen, round planning, beat scheduling, controls
 
 ## Hosting

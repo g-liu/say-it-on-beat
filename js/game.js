@@ -10,6 +10,7 @@
 
   const Content = window.Content;
   const Tracks = window.Soundtracks;
+  const Picks = window.Picks;
   const engine = new window.BeatEngine();
   const $ = (id) => document.getElementById(id);
 
@@ -67,6 +68,7 @@
   };
   // A chip can be hidden (e.g. the E string for viola) or disabled (e.g. whole notes in 3/4) by the other settings.
   const chipState = (sc, id) => (sc.chipState ? sc.chipState(id, settings) : '') || '';
+  const pickable = (sc) => allChips(sc.id).filter((id) => !chipState(sc, id));
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
   /* ============================ settings ============================ */
@@ -328,7 +330,12 @@
       const el = document.querySelector('.subcat[data-sub="' + sc.id + '"]');
       if (el) el.classList.toggle('on', usable(sc.id).length > 0);
       const all = document.querySelector('.sub-all[data-sub="' + sc.id + '"]');
-      if (all) all.disabled = sc.chips.every((c) => chipState(sc, c.id) || picked(sc.id).indexOf(c.id) >= 0);
+      if (all) {
+        const none = Picks.allNoneLabel(picked(sc.id), pickable(sc)) === 'none';
+        all.textContent = none ? 'None' : 'All';
+        all.title = none ? 'Clear every button' : 'Pick every button';
+        all.disabled = !pickable(sc).length || (none && sc.fixed && picked(sc.id).length <= 1);
+      }
     });
     document.querySelectorAll('.ichip').forEach((el) => {
       const sc = Content.subById(el.dataset.sub);
@@ -434,7 +441,9 @@
       const all = e.target.closest('.sub-all');
       if (all) {
         const sc = Content.subById(all.dataset.sub);
-        settings.sel[sc.id] = allChips(sc.id).filter((id) => !chipState(sc, id) || picked(sc.id).indexOf(id) >= 0);
+        const next = Picks.allNonePicks(sc, picked(sc.id), pickable(sc));
+        if (!next.length && picked(sc.id).length) settings.lastSel[sc.id] = picked(sc.id).slice();
+        settings.sel[sc.id] = next;
         changed();
         return;
       }

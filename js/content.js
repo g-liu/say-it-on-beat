@@ -877,15 +877,8 @@
       say: 'General pause', detail: 'everyone is silent for the whole bar' }
   ];
 
-  // Ornaments over a stem-down B4.
-  function trillLineCard() {
-    let s = staff5() + N.note(30, B4, { dur: 'h', up: false }).svg + N.glyph('ornamentTrill', 23, TOP - 5);
-    for (let x = 44; x < 118; x += N.width('wiggleTrill')) s += N.glyph('wiggleTrill', x, TOP - 9);
-    return card(s);
-  }
   const ORNAMENT_ITEMS = [
     symbolItem('orn-trill', 'ornamentTrill', 'Trill', 'alternate quickly with the note above'),
-    { id: 'orn-trillline', chip: 'Trill with wavy line', svg: trillLineCard(), say: 'Trill', detail: 'trill for as long as the wavy line lasts' },
     symbolItem('orn-mordent', 'ornamentMordent', 'Mordent', 'note, the note below, note: quickly'),
     symbolItem('orn-invmordent', 'ornamentShortTrill', 'Inverted mordent', 'note, the note above, note: quickly (upper mordent)',
       { chip: 'Inverted mordent' }),
@@ -1676,6 +1669,8 @@
     'sym-fermata': ['symbols', 'pauses'], 'adv-fshort': ['advsymbols', 'pauses'], 'adv-flong': ['advsymbols', 'pauses'],
     'adv-caesura': ['advsymbols', 'pauses'], 'adv-sfp': ['advsymbols', 'dynamics']
   };
+  // Chip ids that were removed, and the chip their saved picks turn into: { oldId: newId }.
+  const REPLACED_CHIPS = { 'orn-trillline': 'orn-trill' };
 
   const CATEGORIES = [
     { id: 'notes', tab: 'cards', name: 'Note names', subcats: [
@@ -1757,6 +1752,7 @@
     INSTRUMENTS: INSTRUMENTS, INSTRUMENT_IDS: INSTRUMENT_IDS, CLEF_MODES: CLEF_MODES, clefFor: clefFor, resolve: resolve,
     KEYS: PICKER_KEYS, DEGREE_IDS: DEGREE_IDS, CHORD_LABELS: CHORD_LABELS,
     TABS: TABS, CATEGORIES: CATEGORIES, SUBCATS: SUBCATS, subById: subById, STRINGS: STRINGS, RELOCATED_CHIPS: RELOCATED_CHIPS,
+    REPLACED_CHIPS: REPLACED_CHIPS,
     METERS: METERS, METER_IDS: METER_IDS, meterName: meterName, rhythmItem: rhythmItem, DEFAULT_RHYTHM_VALUES: DEFAULT_RHYTHM_VALUES,
     SCALE_CHOICES: SCALE_CHOICES, RANGE_NOTES: RANGE_NOTES, PICK_ROWS: PICK_ROWS,
     pretty: pretty, pitchPool: pitchPool, pitchSummary: pitchSummary,

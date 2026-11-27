@@ -53,7 +53,7 @@
     accidentalThreeQuarterTonesSharpStein: [0xE283, 1.16], accidentalNarrowReversedFlatAndFlat: [0xE285, 1.664],
     dynamicSforzandoPiano: [0xE537, 3.256],
     tuplet3: [0xE883, 1.116], tuplet2: [0xE882, 1.188], tuplet5: [0xE885, 1.18], tuplet6: [0xE886, 1.116], tuplet7: [0xE887, 1.088],
-    ornamentTrill: [0xE566, 1.732], wiggleTrill: [0xEAA4, 0.88], ornamentMordent: [0xE56D, 1.892], ornamentShortTrill: [0xE56C, 1.892], ornamentTurn: [0xE567, 1.824], ornamentTurnInverted: [0xE568, 1.824], ornamentTurnSlash: [0xE569, 1.824], ornamentTremblement: [0xE56E, 2.616], ornamentSchleifer: [0xE587, 2.364], ornamentPrecompTrillWithMordent: [0xE5BD, 2.612], repeat1Bar: [0xE500, 1.924], breathMarkComma: [0xE4CE, 0.764], fermataVeryLongAbove: [0xE4C8, 3.368], noteheadDiamondHalf: [0xE0D9, 1.34],
+    ornamentTrill: [0xE566, 1.732], ornamentMordent: [0xE56D, 1.892], ornamentShortTrill: [0xE56C, 1.892], ornamentTurn: [0xE567, 1.824], ornamentTurnInverted: [0xE568, 1.824], ornamentTurnSlash: [0xE569, 1.824], ornamentTremblement: [0xE56E, 2.616], ornamentSchleifer: [0xE587, 2.364], ornamentPrecompTrillWithMordent: [0xE5BD, 2.612], repeat1Bar: [0xE500, 1.924], breathMarkComma: [0xE4CE, 0.764], fermataVeryLongAbove: [0xE4C8, 3.368], noteheadDiamondHalf: [0xE0D9, 1.34],
     graceNoteAcciaccaturaStemUp: [0xE560, 1.612], graceNoteAppoggiaturaStemUp: [0xE562, 1.48],
     timeSigCommon: [0xE08A, 1.852], timeSigCutCommon: [0xE08B, 1.852],
     dynamicPiano: [0xE520, 1.268], dynamicMezzo: [0xE521, 1.496], dynamicForte: [0xE522, 1.336],

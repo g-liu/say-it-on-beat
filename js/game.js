@@ -112,9 +112,13 @@
       sel[from] = list.filter((x) => x !== id);
       sel[to] = (sel[to] || []).concat([id]);
     });
+    const replaced = (list) => (Array.isArray(list) ? list.map((id) => Content.REPLACED_CHIPS[id] || id)
+      .filter((id, i, all) => all.indexOf(id) === i) : list);
+    Object.keys(sel).forEach((k) => { sel[k] = replaced(sel[k]); });
     out.sel = {};
     out.lastSel = {};
-    const saved = s.lastSel && typeof s.lastSel === 'object' ? s.lastSel : {};
+    const saved = {};
+    Object.keys(s.lastSel && typeof s.lastSel === 'object' ? s.lastSel : {}).forEach((k) => { saved[k] = replaced(s.lastSel[k]); });
     Content.SUBCATS.forEach((sc) => {
       const valid = sc.chips.map((c) => c.id);
       const order = (a, b) => valid.indexOf(a) - valid.indexOf(b);

@@ -437,25 +437,43 @@
   const A4 = N.posToY(3, TOP);   // second space — stems up
 
   /*
-   * Note values are drawn bare, without a staff, a little larger and centered on the card.
-   * The notes are drawn at the A4 height (stems up), so their middle is at y = 50.
+   * Note values are drawn bare, without a staff, a little larger and centred on the card: each
+   * drawing comes with its outline (box), which centres it and crops its button.
    */
   const BARE_SCALE = 1.35, BARE_WIDE_SCALE = 1.15;
-  const WIDE_VALUE_CROP = { x: 4, y: 16, w: 122, h: 86 };   // buttons for beamed groups
-  function bareCard(body, wide, cx, cy) {
-    const k = wide ? BARE_WIDE_SCALE : BARE_SCALE;
-    return card('<g transform="translate(65 62) scale(' + k + ') translate(' + -(cx || 65) + ' ' + -(cy || 50) + ')">' + body + '</g>');
+  const TUPLET_GAP = 2;
+  const TUPLET_NUM_HEIGHT = 14.6;
+  const HEAD_HALF_HEIGHT = 5.4;
+  const VALUE_CHIP_MIN_HEIGHT = 44;
+  function bareCard(drawing, wide) {
+    const k = wide ? BARE_WIDE_SCALE : BARE_SCALE, b = drawing.box;
+    const t = 'translate(65 62) scale(' + k + ') translate(' + (-(b.x + b.w / 2)).toFixed(2) + ' ' + (-(b.y + b.h / 2)).toFixed(2) + ')';
+    const h = Math.max(b.h, VALUE_CHIP_MIN_HEIGHT);
+    return { svg: card(N.g(t, drawing.svg)), chipBox: { x: 65 - (b.w * k) / 2, y: 62 - (h * k) / 2, w: b.w * k, h: h * k } };
   }
-  function valueCard(dur, dots) {
-    return bareCard(N.note(62, A4, { dur: dur, up: true, dots: dots || 0 }).svg, false, dots ? 70 : 67, dur === 'w' ? A4 : 50);
+  function noteDrawing(x, y, dur, dots, noFlag) {
+    const head = dur === 'w' ? 'noteheadWhole' : dur === 'h' ? 'noteheadHalf' : 'noteheadBlack';
+    const n = N.note(x, y, { dur: dur, up: true, dots: dots || 0, noFlag: noFlag });
+    const half = N.width(head) / 2;
+    let right = x + half;
+    if (!noFlag && (dur === '8' || dur === '16')) right = Math.max(right, n.stemX + N.width(dur === '8' ? 'flag8thUp' : 'flag16thUp'));
+    if (dots) right = Math.max(right, x + half + 3 + (dots - 1) * 6 + N.width('augmentationDot'));
+    const top = n.stemEnd == null ? y - HEAD_HALF_HEIGHT : n.stemEnd;
+    return { svg: n.svg, box: { x: x - half, y: top, w: right - (x - half), h: y + HEAD_HALF_HEIGHT - top }, stemX: n.stemX };
   }
+  const REST_BOX = {
+    w: { halfWidth: 17, above: 11, below: -4 }, h: { halfWidth: 17, above: 6, below: 1 },
+    q: { halfWidth: 4.7, above: 16.1, below: 13.3 }, '8': { halfWidth: 5.5, above: 8.2, below: 10.3 }
+  };
   // Rests are bare too, except whole and half rests, which need a line to hang from or sit on.
-  function restCard(kind) {
+  function restDrawing(kind) {
     const line = { w: TOP + 10, h: MID }[kind];
-    return bareCard((line ? N.line(48, line, 82, line, 1.3) : '') + N.rest(kind, 65, MID), false, 65, MID - 4);
+    const b = REST_BOX[kind];
+    return { svg: (line ? N.line(48, line, 82, line, 1.3) : '') + N.rest(kind, 65, MID),
+      box: { x: 65 - b.halfWidth, y: MID - b.above, w: 2 * b.halfWidth, h: b.above + b.below } };
   }
 
-  // Notes beamed together at the A4 height with stems up.
+  // Notes beamed together at the A4 height with stems up, and their outline.
   function beamed(xs, durs, secondary, tupletLabel) {
     let s = '';
     const stems = xs.map((x, i) => {
@@ -463,11 +481,13 @@
       s += n.svg;
       return n.stemX;
     });
-    const top = stems.length ? A4 - 35 : 0;
+    const top = A4 - 35;
     s += N.beam(stems[0], stems[stems.length - 1], top, 0);
     (secondary || []).forEach(([a, b]) => { s += N.beam(stems[a], stems[b], top, 1); });
-    if (tupletLabel) s += N.tupletNum(tupletLabel, (stems[0] + stems[stems.length - 1]) / 2, top - 4);
-    return s;
+    if (tupletLabel) s += N.tupletNum(tupletLabel, (stems[0] + stems[stems.length - 1]) / 2, top - TUPLET_GAP);
+    const boxTop = tupletLabel ? top - TUPLET_GAP - TUPLET_NUM_HEIGHT : top;
+    const left = xs[0] - N.width('noteheadBlack') / 2, right = stems[stems.length - 1] + 1;
+    return { svg: s, box: { x: left, y: boxTop, w: right - left, h: A4 + HEAD_HALF_HEIGHT - boxTop } };
   }
 
   // Dotted eighth beamed to a sixteenth: full beam plus a short stub on the sixteenth.
@@ -475,32 +495,31 @@
     const a = N.note(40, A4, { dur: '8', up: true, noFlag: true, dots: 1 });
     const b = N.note(86, A4, { dur: '16', up: true, noFlag: true });
     const top = A4 - 35;
-    return a.svg + b.svg + N.beam(a.stemX, b.stemX, top, 0) + N.rect(b.stemX - 9.6, top + 7.5, 10.25, 5);
+    return { svg: a.svg + b.svg + N.beam(a.stemX, b.stemX, top, 0) + N.rect(b.stemX - 9.6, top + 7.5, 10.25, 5),
+      box: { x: 40 - 6.5, y: top, w: b.stemX + 1 - 33.5, h: A4 + HEAD_HALF_HEIGHT - top } };
   }
+  const valueItem = (id, drawing, wide, say, detail) => Object.assign({ id: id, say: say, detail: detail }, bareCard(drawing, wide));
 
   const BASIC_VALUES = [
-    { id: 'v-w', svg: valueCard('w'), say: 'Whole note', detail: '4 beats' },
-    { id: 'v-h', svg: valueCard('h'), say: 'Half note', detail: '2 beats' },
-    { id: 'v-q', svg: valueCard('q'), say: 'Quarter note', detail: '1 beat' },
-    { id: 'v-8', svg: valueCard('8'), say: 'Eighth note', detail: '½ beat' },
-    { id: 'v-ee', svg: bareCard(beamed([44, 80], ['8', '8']), false, 66), say: 'Two eighth notes', detail: '1 beat together' },
-    { id: 'r-w', svg: restCard('w'), say: 'Whole rest', detail: '4 beats of silence · hangs from the line' },
-    { id: 'r-h', svg: restCard('h'), say: 'Half rest', detail: '2 beats of silence · sits on the line' },
-    { id: 'r-q', svg: restCard('q'), say: 'Quarter rest', detail: '1 beat of silence' },
-    { id: 'r-8', svg: restCard('8'), say: 'Eighth rest', detail: '½ beat of silence' }
+    valueItem('v-w', noteDrawing(62, A4, 'w'), false, 'Whole note', '4 beats'),
+    valueItem('v-h', noteDrawing(62, A4, 'h'), false, 'Half note', '2 beats'),
+    valueItem('v-q', noteDrawing(62, A4, 'q'), false, 'Quarter note', '1 beat'),
+    valueItem('v-8', noteDrawing(62, A4, '8'), false, 'Eighth note', '½ beat'),
+    valueItem('v-ee', beamed([44, 80], ['8', '8']), false, 'Two eighth notes', '1 beat together'),
+    valueItem('r-w', restDrawing('w'), false, 'Whole rest', '4 beats of silence · hangs from the line'),
+    valueItem('r-h', restDrawing('h'), false, 'Half rest', '2 beats of silence · sits on the line'),
+    valueItem('r-q', restDrawing('q'), false, 'Quarter rest', '1 beat of silence'),
+    valueItem('r-8', restDrawing('8'), false, 'Eighth rest', '½ beat of silence')
   ];
 
   const ADVANCED_VALUES = [
-    { id: 'a-dh', svg: valueCard('h', 1), say: 'Dotted half note', detail: '3 beats' },
-    { id: 'a-dq', svg: valueCard('q', 1), say: 'Dotted quarter note', detail: '1½ beats' },
-    { id: 'a-d8', svg: valueCard('8', 1), say: 'Dotted eighth note', detail: '¾ beat' },
-    { id: 'a-16', svg: valueCard('16'), say: 'Sixteenth note', detail: '¼ beat' },
-    { id: 'a-ssss', svg: bareCard(beamed([30, 52, 74, 96], ['16', '16', '16', '16'], [[0, 3]]), true, 68), chipCrop: WIDE_VALUE_CROP,
-      say: 'Four sixteenths', detail: '1 beat · 1 e & a' },
-    { id: 'a-trip', svg: bareCard(beamed([36, 62, 88], ['8', '8', '8'], null, '3'), true, 67), chipCrop: WIDE_VALUE_CROP,
-      say: 'Triplet', detail: '3 eighths in 1 beat · 1-trip-let' },
-    { id: 'a-d8s', svg: bareCard(dottedEighthSixteenth(), true, 68), chipCrop: WIDE_VALUE_CROP,
-      say: 'Dotted eighth sixteenth', detail: '1 beat · long-short' }
+    valueItem('a-dh', noteDrawing(62, A4, 'h', 1), false, 'Dotted half note', '3 beats'),
+    valueItem('a-dq', noteDrawing(62, A4, 'q', 1), false, 'Dotted quarter note', '1½ beats'),
+    valueItem('a-d8', noteDrawing(62, A4, '8', 1), false, 'Dotted eighth note', '¾ beat'),
+    valueItem('a-16', noteDrawing(62, A4, '16'), false, 'Sixteenth note', '¼ beat'),
+    valueItem('a-ssss', beamed([30, 52, 74, 96], ['16', '16', '16', '16'], [[0, 3]]), true, 'Four sixteenths', '1 beat · 1 e & a'),
+    valueItem('a-trip', beamed([36, 62, 88], ['8', '8', '8'], null, '3'), true, 'Triplet', '3 eighths in 1 beat · 1-trip-let'),
+    valueItem('a-d8s', dottedEighthSixteenth(), true, 'Dotted eighth sixteenth', '1 beat · long-short')
   ];
 
   // n sixteenths (or eighths) beamed under one tuplet number, spread across the card.
@@ -508,39 +527,46 @@
     const xs = [];
     const gap = Math.min(22, 84 / (n - 1));
     for (let i = 0; i < n; i++) xs.push(65 - (gap * (n - 1)) / 2 + i * gap);
-    return bareCard(beamed(xs, xs.map(() => dur), dur === '16' ? [[0, n - 1]] : null, label), true, 68);
+    return bareCard(beamed(xs, xs.map(() => dur), dur === '16' ? [[0, n - 1]] : null, label), true);
   }
-  // Small grace notes (stem up, a size smaller) before a main note.
+  // Small grace notes (stem up, a size smaller) right before a main note, on the staff.
   const GRACE_SIZE = 30;
+  const GRACE_CHIP_BOX = { x: 46, y: TOP - 14, w: 56, h: 62 };
   function graceCard(kind) {
     const main = N.note(88, A4, { dur: 'q', up: true }).svg;
+    let s;
     if (kind === 'acciaccatura' || kind === 'appoggiatura') {
       const g = kind === 'acciaccatura' ? 'graceNoteAcciaccaturaStemUp' : 'graceNoteAppoggiaturaStemUp';
       const gy = N.posToY(4, TOP);   // B4, a step above the main note
       // Leland's grace-note glyphs are already cue-sized.
-      return card(staff5() + N.glyph(g, 40, gy) + N.curve(46, gy + 7, 84, A4 + 7, true, 5) + main);
+      s = N.glyph(g, 62, gy) + N.curve(66, gy + 7, 84, A4 + 7, true, 4);
+    } else {
+      // Two beamed grace sixteenths (C5, B4) leading into A4.
+      const k = GRACE_SIZE / 40, head = N.width('noteheadBlack') * k;
+      const xs = [58, 70], ys = [N.posToY(5, TOP), N.posToY(4, TOP)];
+      s = '';
+      xs.forEach((x, i) => {
+        s += N.glyph('noteheadBlack', x - head / 2, ys[i], { size: GRACE_SIZE });
+        s += N.line(x + head / 2 - 0.5, ys[i] - 1, x + head / 2 - 0.5, TOP - 6, 1);
+      });
+      s += N.rect(xs[0] + head / 2 - 1, TOP - 6, xs[1] - xs[0] + 1, 3) + N.rect(xs[0] + head / 2 - 1, TOP - 1, xs[1] - xs[0] + 1, 3) +
+        N.curve(56, ys[0] + 8, 84, A4 + 7, true, 5);
     }
-    // Two beamed grace sixteenths (C5, B4) leading into A4.
-    const k = GRACE_SIZE / 40, head = N.width('noteheadBlack') * k;
-    let s = '';
-    const xs = [30, 46], ys = [N.posToY(5, TOP), N.posToY(4, TOP)];
-    xs.forEach((x, i) => {
-      s += N.glyph('noteheadBlack', x - head / 2, ys[i], { size: GRACE_SIZE });
-      s += N.line(x + head / 2 - 0.5, ys[i] - 1, x + head / 2 - 0.5, TOP - 6, 1);
-    });
-    s += N.rect(xs[0] + head / 2 - 1, TOP - 6, xs[1] - xs[0] + 1, 3) + N.rect(xs[0] + head / 2 - 1, TOP - 1, xs[1] - xs[0] + 1, 3);
-    return card(staff5() + s + N.curve(28, ys[0] + 8, 84, A4 + 7, true, 6) + main);
+    return { svg: card(staff5() + s + main), chipBox: GRACE_CHIP_BOX };
   }
 
   const TUPLET_ITEMS = [
-    { id: 'tup-duplet', svg: tupletCard(2, '8', 2), say: 'Duplet', detail: '2 eighths in the time of 3 (in 6/8, 9/8, 12/8)' },
-    { id: 'tup-triplet', svg: tupletCard(3, '8', 3), say: 'Triplet', detail: '3 in the time of 2' },
-    { id: 'tup-quintuplet', svg: tupletCard(5, '16', 5), say: 'Quintuplet', detail: '5 sixteenths in the time of 4' },
-    { id: 'tup-sextuplet', svg: tupletCard(6, '16', 6), say: 'Sextuplet', detail: '6 sixteenths in the time of 4' },
-    { id: 'tup-septuplet', svg: tupletCard(7, '16', 7), say: 'Septuplet', detail: '7 sixteenths in the time of 4' },
-    { id: 'grace-notes', chip: 'Grace notes', svg: graceCard('notes'), say: 'Grace notes', detail: 'small quick notes just before the beat; they don’t count in the rhythm' },
-    { id: 'grace-appoggiatura', svg: graceCard('appoggiatura'), say: 'Appoggiatura', detail: 'a “leaning” note: no slash; it takes time from the main note' },
-    { id: 'grace-acciaccatura', svg: graceCard('acciaccatura'), say: 'Acciaccatura', detail: 'a “crushed” note: slash through it; as quick as possible' }
+    Object.assign({ id: 'tup-duplet', say: 'Duplet', detail: '2 eighths in the time of 3 (in 6/8, 9/8, 12/8)' }, tupletCard(2, '8', 2)),
+    Object.assign({ id: 'tup-triplet', say: 'Triplet', detail: '3 in the time of 2' }, tupletCard(3, '8', 3)),
+    Object.assign({ id: 'tup-quintuplet', say: 'Quintuplet', detail: '5 sixteenths in the time of 4' }, tupletCard(5, '16', 5)),
+    Object.assign({ id: 'tup-sextuplet', say: 'Sextuplet', detail: '6 sixteenths in the time of 4' }, tupletCard(6, '16', 6)),
+    Object.assign({ id: 'tup-septuplet', say: 'Septuplet', detail: '7 sixteenths in the time of 4' }, tupletCard(7, '16', 7)),
+    Object.assign({ id: 'grace-notes', chip: 'Grace notes', say: 'Grace notes',
+      detail: 'small quick notes just before the beat; they don’t count in the rhythm' }, graceCard('notes')),
+    Object.assign({ id: 'grace-appoggiatura', say: 'Appoggiatura', detail: 'a “leaning” note: no slash; it takes time from the main note' },
+      graceCard('appoggiatura')),
+    Object.assign({ id: 'grace-acciaccatura', say: 'Acciaccatura', detail: 'a “crushed” note: slash through it; as quick as possible' },
+      graceCard('acciaccatura'))
   ];
 
   /* =========================================================
@@ -947,7 +973,7 @@
     { id: 'adv-qflat', svg: quarterToneCard('qf', 74), say: 'Quarter-tone flat', detail: 'lower the note by a quarter step' },
     { id: 'adv-tqsharp', chip: 'Three-quarter-tone sharp', svg: quarterToneCard('tqs', 62), say: 'Three-quarter-tone sharp', detail: 'raise the note by three quarter steps' },
     { id: 'adv-tqflat', chip: 'Three-quarter-tone flat', svg: quarterToneCard('tqf', 74), say: 'Three-quarter-tone flat', detail: 'lower the note by three quarter steps' },
-    { id: 'adv-niente', chip: 'Al niente', svg: nienteCard(), say: 'Al niente', detail: 'fade away to nothing' },
+    { id: 'adv-niente', chip: 'Al niente', svg: nienteCard(), chipBox: { x: 14, y: 54, w: 100, h: 16 }, say: 'Al niente', detail: 'fade away to nothing' },
     { id: 'adv-collegno', svg: textCard('col legno', 30), say: 'Col legno', detail: 'play with the wood of the bow' },
     { id: 'adv-sulpont', svg: textCard('sul pont.', 32), say: 'Sul ponticello', detail: 'bow very near the bridge: glassy, eerie' },
     { id: 'adv-sultasto', svg: textCard('sul tasto', 32), say: 'Sul tasto', detail: 'bow over the fingerboard: soft and airy' },
@@ -1187,7 +1213,7 @@
         const xs = notes.filter((n) => !n.rest).map((n) => n.stemX);
         const beamedTuplet = notes.every((n) => flagged(n));
         if (beamedTuplet) {
-          s += N.tupletNum(c.tuplet, (xs[0] + xs[xs.length - 1]) / 2, stemTop - 4);
+          s += N.tupletNum(c.tuplet, (xs[0] + xs[xs.length - 1]) / 2, stemTop - TUPLET_GAP);
         } else {
           // Quarter-note triplet: a bracket with a 3.
           const bx1 = xs[0] - 6, bx2 = xs[xs.length - 1] + 2, by = stemTop - 6;
@@ -1305,34 +1331,38 @@
   })));
 
   // Small pictures of note values for the rhythm buttons (and the note value chips).
-  function noteArt(body, x0, w) {
-    return '<svg class="chip-art note-art" viewBox="' + x0 + ' -42 ' + w + ' 50" aria-hidden="true"><g>' + body + '</g></svg>';
+  const NOTE_ART_PAD = 3;
+  function noteArt(body, left, right, top) {
+    const y0 = Math.min(-42, Math.floor(top || 0) - NOTE_ART_PAD);
+    return '<svg class="chip-art note-art" viewBox="' + (left - NOTE_ART_PAD).toFixed(1) + ' ' + y0 + ' ' +
+      (right - left + 2 * NOTE_ART_PAD).toFixed(1) + ' ' + (8 - y0) + '" aria-hidden="true"><g>' + body + '</g></svg>';
   }
+  const singleArt = (dur, dots) => { const d = noteDrawing(0, 0, dur, dots); return noteArt(d.svg, d.box.x, d.box.x + d.box.w); };
   function beamedArt(n, dur, label) {
     let s = '';
     const xs = [];
     for (let i = 0; i < n; i++) { const r = N.note(i * 16, 0, { dur: dur, up: true, noFlag: true }); s += r.svg; xs.push(r.stemX); }
     s += N.beam(xs[0], xs[n - 1], -35, 0);
     if (dur === '16') s += N.beam(xs[0], xs[n - 1], -35, 1);
-    if (label) s += N.tupletNum(label, (xs[0] + xs[n - 1]) / 2, -39);
-    return noteArt(s, -9, (n - 1) * 16 + 20);
+    if (label) s += N.tupletNum(label, (xs[0] + xs[n - 1]) / 2, -35 - TUPLET_GAP);
+    return noteArt(s, -N.width('noteheadBlack') / 2, xs[n - 1] + 1, label ? -35 - TUPLET_GAP - TUPLET_NUM_HEIGHT : 0);
   }
   const RHYTHM_VALUE_ART = {
-    '16': () => noteArt(N.note(0, 0, { dur: '16', up: true }).svg, -9, 26),
-    '8': () => noteArt(N.note(0, 0, { dur: '8', up: true }).svg, -9, 24),
-    'q': () => noteArt(N.note(0, 0, { dur: 'q', up: true }).svg, -9, 20),
-    'h': () => noteArt(N.note(0, 0, { dur: 'h', up: true }).svg, -9, 20),
-    'w': () => noteArt(N.note(0, 0, { dur: 'w' }).svg, -10, 22),
+    '16': () => singleArt('16'),
+    '8': () => singleArt('8'),
+    'q': () => singleArt('q'),
+    'h': () => singleArt('h'),
+    'w': () => singleArt('w'),
     'd8': () => {
       const a = N.note(0, 0, { dur: '8', up: true, noFlag: true, dots: 1 });
       const b = N.note(24, 0, { dur: '16', up: true, noFlag: true });
-      return noteArt(a.svg + b.svg + N.beam(a.stemX, b.stemX, -35, 0) + N.rect(b.stemX - 8, -27.5, 8.65, 5), -9, 42);
+      return noteArt(a.svg + b.svg + N.beam(a.stemX, b.stemX, -35, 0) + N.rect(b.stemX - 8, -27.5, 8.65, 5), -6.5, b.stemX + 1);
     },
-    'dq': () => noteArt(N.note(0, 0, { dur: 'q', up: true, dots: 1 }).svg, -9, 26),
-    'dh': () => noteArt(N.note(0, 0, { dur: 'h', up: true, dots: 1 }).svg, -9, 26),
+    'dq': () => singleArt('q', 1),
+    'dh': () => singleArt('h', 1),
     'trip': () => beamedArt(3, '8', 3),
     'dup': () => beamedArt(2, '8', 2),
-    'rest': () => noteArt(N.rest('q', 0, -14), -9, 18)
+    'rest': () => noteArt(N.rest('q', 0, -14), -4.7, 4.7)
   };
 
   /* =========================================================
@@ -1630,10 +1660,12 @@
     if (!m || /SayItOnBeat/.test(m[1])) return null;
     return { text: m[2], italic: /font-style="italic"/.test(m[1]) };
   }
+  const CHIP_BOX_MIN = 40;
   function padBox(b) {
     const pad = 2 + 0.06 * Math.max(b.w, b.h);
+    const w = Math.max(CHIP_BOX_MIN, b.w + 2 * pad), h = Math.max(CHIP_BOX_MIN, b.h + 2 * pad);
     const r = (n) => Math.round(n * 10) / 10;
-    return { x: r(b.x - pad), y: r(b.y - pad), w: r(b.w + 2 * pad), h: r(b.h + 2 * pad) };
+    return { x: r(b.x + b.w / 2 - w / 2), y: r(b.y + b.h / 2 - h / 2), w: r(w), h: r(h) };
   }
   function symbolChip(it, crop) {
     if (it.chipHtml) return it.chipHtml;

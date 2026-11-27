@@ -115,6 +115,8 @@ The on-screen controls hide while the game is running. Move the mouse to bring t
 - `js/content.js`: the categories, subcategories and cards, and the rhythm generator
 - `js/soundtracks.js`: the soundtracks as data (chord progression, instruments, drum and bass patterns for each kind of beat, fills, bells) and the functions that turn a beat into notes. To add a soundtrack, add an object to `LIST`, run `node tools/check_soundtracks.js`, and set its loudness in `LOUDNESS_GAIN`.
 - `js/audio.js`: the synth voices (drums, bass, pads, FM pianos and bells, metallophones, gongs) and the clap. Everything passes a compressor and a hard ceiling at 0.99, so the output never reaches full scale.
+- `tools/check_clipping.py`: draws every card and button and reports any that would be cut off
+- `tools/check_picks.js`, `tools/print_cards.js`: tests for the All / None / Only buttons, and every card's answer for chosen subcategories
 - `tools/measure_audio.html`: open it in a browser to measure the clap and music peaks (used to set the clap's 100% level); add `#tracks` to the address to measure every soundtrack's peak and loudness
 - `js/game.js`: setup screen, round planning, beat scheduling, controls
 

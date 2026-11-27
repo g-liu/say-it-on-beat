@@ -118,7 +118,6 @@
     return gn;
   };
 
-  // Attack, decay to a sustain level, hold until `dur`, release. Returns { node, end }.
   Engine.prototype.shape = function (t, peak, p, dur) {
     const gn = this.ctx.createGain();
     const top = Math.max(0.0002, peak * this.level);
@@ -155,7 +154,6 @@
     return f;
   };
 
-  // A pulse wave (duty 0.5 is a square), as a cached PeriodicWave.
   Engine.prototype.pulseWave = function (duty) {
     const key = String(duty);
     if (this.waves[key]) return this.waves[key];
@@ -189,10 +187,6 @@
     return curve;
   }
 
-  /* ---------------- voices ----------------
-   * Each voice is (engine, t, level, params, extra) where params come from the soundtrack's
-   * voice definition and extra is { freqs, dur, accent, mult } for pitched voices.
-   */
   const VOICES = {
     kick(e, t, v, p) {
       const decay = p.decay || 0.38;
@@ -228,7 +222,6 @@
       hp.connect(e.env(t, v, 0.001, decay));
     },
 
-    // Six detuned square waves through a highpass: hi-hats, rides and crashes with a metallic ring.
     cymbal(e, t, v, p) {
       const decay = p.decay || 0.05;
       const hp = e.filter('highpass', p.cutoff || 7000);
@@ -265,7 +258,6 @@
       });
     },
 
-    // Wood and rims: a short pitched click (clave, woodblock, cross-stick).
     wood(e, t, v, p) {
       const decay = p.decay || 0.05;
       const o = e.osc(p.type || 'sine', p.freq || 2500, t, t + decay + 0.02);
@@ -277,7 +269,6 @@
       }
     },
 
-    // Drums with a pitch: toms, congas, the kendang. extra.mult bends the pitch (for fills).
     tom(e, t, v, p, x) {
       const f = (p.freq || 120) * ((x && x.mult) || 1);
       const decay = p.decay || 0.3;
@@ -310,7 +301,6 @@
       g.connect(e.bus);
     },
 
-    // Count-in stick; extra.accent for the downbeat.
     stick(e, t, v, p, x) {
       const accent = x && x.accent;
       const f = (p.freq || 1320) * (accent ? 4 / 3 : 1);
@@ -319,10 +309,6 @@
       bp.connect(e.env(t, v * (accent ? 0.7 : 0.5), 0.001, 0.05));
     },
 
-    /*
-     * A pitched synth note or chord: oscillators (p.osc), an optional drive, a filter with a sweep,
-     * and an attack-decay-sustain-release envelope. p.strum staggers the notes of a chord.
-     */
     tone(e, t, v, p, x) {
       const oscs = p.osc || [{ type: p.type || 'square' }];
       const env = p.decay == null && !p.sustain ? Object.assign({}, p, { decay: x.dur }) : p;
@@ -357,7 +343,6 @@
       });
     },
 
-    // FM: electric piano (ratio 1), vibraphone and glockenspiel (ratio 3.5 to 4), marimba, celesta.
     fm(e, t, v, p, x) {
       const freqs = x && x.freqs ? x.freqs : [p.freq || 880];
       const dur = x && x.dur ? x.dur : 0.3;
@@ -377,7 +362,6 @@
       });
     },
 
-    // Metallophones (saron, bonang, kenong): inharmonic partials that ring and fade.
     metal(e, t, v, p, x) {
       const freqs = x && x.freqs ? x.freqs : [p.freq || 600];
       const partials = p.partials || [[1, 1], [2.76, 0.35], [5.4, 0.12]];
@@ -393,7 +377,6 @@
       });
     },
 
-    // A gong: a low tone and a slightly detuned twin (it beats slowly), with a softer metallic overtone.
     gong(e, t, v, p, x) {
       const f = x && x.freqs ? x.freqs[0] : (p.freq || 55);
       const decay = p.decay || 3;
@@ -403,7 +386,6 @@
       });
     },
 
-    // An 8-bit coin: a short blip, then the same note a 4th higher.
     coin(e, t, v, p, x) {
       const f = x && x.freqs ? x.freqs[0] : 988;
       [[0, 1, 0.07], [0.07, 4 / 3, 0.3]].forEach(([dt, mult, dur]) => {
@@ -412,7 +394,6 @@
       });
     },
 
-    // The original bell: a triangle with a sine an octave up.
     bell(e, t, v, p, x) {
       const f = x && x.freqs ? x.freqs[0] : 880;
       [1, 2].forEach((mult, i) => {
@@ -422,7 +403,6 @@
     }
   };
 
-  // Play one of the soundtrack's voices (by slot name) at a level from 0 to 1.
   Engine.prototype.hit = function (slot, t, level, extra) {
     const p = this.track.voices[slot];
     if (!p || level <= 0) return;

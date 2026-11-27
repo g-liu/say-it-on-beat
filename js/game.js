@@ -981,7 +981,6 @@
     engine.init();
     engine.setVolume(settings.volume);
     engine.setClapVolume(settings.clapVolume);
-    // Random picks a soundtrack for the whole game (a different one from the last game).
     game.soundtrack = Tracks.pick(settings.soundtrack, Math.random, game.soundtrack);
     engine.setSoundtrack(game.soundtrack);
     $('trackLabel').textContent = '♪ ' + Tracks.byId(game.soundtrack).name;

@@ -339,18 +339,12 @@
 
   /* ---------------- four-part voicing for cadences ---------------- */
 
-  /*
-   * Cadences are written in four parts (bass and three upper voices) on one treble staff, then moved
-   * by octaves for alto clef. Staff positions count diatonic steps from the bottom line (E4 in treble,
-   * F3 in alto); at most two ledger lines means positions -5 to 13.
-   */
   const STAFF_BOTTOM = { treble: 4 * 7 + 2, alto: 3 * 7 + 3 };
   const LOWEST_POS = -5, HIGHEST_POS = 13;
   const diatonicOf = (v) => v.octave * 7 + LETTERS.indexOf(v.name[0]);
   const staffPosOf = (v, clef) => diatonicOf(v) - STAFF_BOTTOM[clef || 'treble'];
   const ledgerLines = (pos) => (pos < -1 ? Math.floor(-pos / 2) : pos > 9 ? Math.floor((pos - 8) / 2) : 0);
 
-  // What each voicing rule costs; Infinity forbids it.
   const VOICING_COST = {
     parallel: Infinity, contrary58: 25, hidden58: 6, overlap: 15, upperLeapOverOctave: Infinity, leap: 2,
     augSecond: 30, unresolvedLeadingTone: Infinity, unresolvedSeventh: Infinity, outsideStaff: 1.5, offCenter: 0.3,
@@ -358,7 +352,6 @@
     noFifth: 5, sopranoMotion: 1.2, innerMotion: 1, bassLeapOverFifth: 0.5
   };
 
-  // Every four-part voicing of a chord with the given bass and soprano members: [{ name, octave, midi, member }] low to high.
   function chordVoicings(ch, bassM, topM, avoid, clef) {
     const m = ch.notes.length;
     const octavesOf = (member) => {
@@ -392,7 +385,6 @@
     return result;
   }
 
-  // How good one chord's doubling and register are (lower is better).
   function chordCost(v, ch, bassM, prefer, clef) {
     const C = VOICING_COST;
     const counts = [0, 0, 0, 0];
@@ -416,7 +408,6 @@
     return cost + C.offCenter * Math.abs(sum / 4 - 4);
   }
 
-  // The cost of moving from voicing A to voicing B. lt / seventh: A's members that must resolve (or null).
   function motionCost(A, B, lt, seventh) {
     const C = VOICING_COST;
     let cost = 0;
@@ -458,7 +449,6 @@
     const lt = dom ? 1 : null;
     const seventh = dom && chA.notes.length === 4 ? 3 : null;
     const ltOfB = isDominant(variant.b) ? [1] : [];
-    // A deceptive cadence (V to vi or ♭VI) doubles the 3rd of the second chord, the tonic.
     const preferB = dom && pc(chB.root) !== pc(key.tonic) ? 1 : null;
     const As = chordVoicings(chA, variant.a[2], variant.a[3], dom ? [1, 3] : [3], clef);
     const Bs = chordVoicings(chB, variant.b[2], variant.b[3], ltOfB.concat([3]), clef);
@@ -477,7 +467,6 @@
     return best;
   }
 
-  // A voicing moved by whole octaves to sit best on a clef's staff, or null if no octave fits.
   function registerFor(voiced, clef) {
     let best = null, bestCost = Infinity;
     [0, -1, 1, -2].forEach((k) => {
@@ -493,11 +482,6 @@
     return best;
   }
 
-  /*
-   * The best four-part voicing of a cadence variant ({ a, b } chord specs, see CADENCES) in a key, on a
-   * clef's staff: { a: [...], b: [...], cost, shift }, each chord four { name, octave, midi, member } from
-   * the bass up. Alto clef uses the treble voicing moved by octaves (shift), or its own if that doesn't fit.
-   */
   function voiceCadence(key, variant, clef) {
     clef = clef || 'treble';
     const id = clef + '|' + key.id + '|' + variant.a.join() + '|' + variant.b.join();

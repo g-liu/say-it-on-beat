@@ -409,10 +409,6 @@
     }
   ];
 
-  /*
-   * Each soundtrack's output gain, set so they all sound about as loud as Classic: measured with
-   * tools/measure_audio.html#tracks (loudness of the "say" bars in 4/4 at 100 BPM).
-   */
   const LOUDNESS_GAIN = {
     classic: 1, retro: 0.525, funk: 0.75, disco: 0.746, jazz: 0.549, salsa: 0.447, bossa: 0.384, gamelan: 0.807,
     lofi: 0.597, rock: 0.895, reggae: 0.29
@@ -428,12 +424,10 @@
     tr.swing = tr.swing || 0;
   });
   const byId = (id) => LIST.find((t) => t.id === id) || LIST.find((t) => t.id === DEFAULT);
-  // The choices in the soundtrack menu: every soundtrack, then Random.
   const CHOICES = LIST.map((t) => ({ id: t.id, name: t.name, desc: t.desc }))
     .concat([{ id: RANDOM, name: 'Random', desc: 'A different soundtrack for each game' }]);
   const isChoice = (id) => CHOICES.some((c) => c.id === id);
 
-  // The soundtrack a game uses: the chosen one, or for Random any other than `avoid` (the last game's).
   function pick(choice, rng, avoid) {
     if (choice !== RANDOM) return byId(choice).id;
     const pool = LIST.filter((t) => t.id !== avoid);
@@ -448,7 +442,6 @@
   const byBar = (v, bar) => (Array.isArray(v) ? v[bar % v.length] : v);
   const stepsPerBeat = (sub) => (sub === 3 ? 6 : 4);
 
-  // Each slot's pattern for one beat (a string of steps).
   function beatPatterns(tr, c) {
     const set = c.sub === 3 ? tr.compound : tr.simple;
     const res = stepsPerBeat(c.sub);
@@ -461,20 +454,17 @@
     return out;
   }
 
-  // Where step j of a beat falls, as a fraction of the beat; swing pushes the offbeat late.
   function stepAt(j, res, swing) {
     if (res !== 4 || !swing) return j / res;
     const mid = 0.5 + swing / 6;
     return [0, mid / 2, mid, mid + (1 - mid) / 2, 1][j];
   }
 
-  // A chord's 3rd, 5th and 7th above its root, in semitones.
   function chordTones(chord) {
     const pcs = chord.notes.map((n) => (((Math.round(n) - chord.root) % 12) + 12) % 12);
     const find = (opts, dflt) => { const hit = opts.find((o) => pcs.indexOf(o) >= 0); return hit == null ? dflt : hit; };
     return { third: find([4, 3], 4), fifth: find([7, 6, 8], 7), seventh: find([10, 11, 9], 12) };
   }
-  // `target` moved by octaves to within a tritone of `ref`.
   function near(target, ref) {
     let m = target;
     while (m - ref > 6) m -= 12;
@@ -482,7 +472,6 @@
     return m;
   }
 
-  // The MIDI notes for one pattern step of a pitched slot, or null.
   function notesFor(ch, p, c) {
     const chord = c.chord, oct = p.oct || 0;
     const root = chord.root + oct;
@@ -518,10 +507,6 @@
 
   const isUpper = (ch) => ch !== ch.toLowerCase();
 
-  /*
-   * The sounds of one beat: [{ slot, at (fraction of the beat), level (0-1), midis, dur (beats) }].
-   * c = { meter, sub, barPos, bar, even, phase, chill, chord, next }
-   */
   function beatEvents(tr, c) {
     const pats = beatPatterns(tr, c);
     const res = stepsPerBeat(c.sub);
@@ -562,7 +547,6 @@
     return { root: e[0], notes: e[1] };
   };
 
-  // The notes held at the end of the game: [{ slot, level, midis }].
   function endNotes(tr, chord) {
     const c = { chord: chord, next: chord, barPos: 0, meter: 4, bar: 0 };
     return tr.end.play.map(([slot, ch, level]) => {

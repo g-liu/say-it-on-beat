@@ -473,7 +473,6 @@
       box: { x: 65 - b.halfWidth, y: MID - b.above, w: 2 * b.halfWidth, h: b.above + b.below } };
   }
 
-  // Notes beamed together at the A4 height with stems up, and their outline.
   function beamed(xs, durs, secondary, tupletLabel) {
     let s = '';
     const stems = xs.map((x, i) => {
@@ -573,7 +572,6 @@
    * Five-line staff: name the line or space the arrow points at
    * ========================================================= */
 
-  // [id, what the class says, staff position (0 = bottom line), group, detail]
   const STAFF_SPOTS = [
     ['line1', 'Line 1', 0, 'Lines', 'the bottom line'], ['line2', 'Line 2', 2, 'Lines', 'the 2nd line from the bottom'],
     ['line3', 'Line 3', 4, 'Lines', 'the middle line'], ['line4', 'Line 4', 6, 'Lines', 'the 2nd line from the top'],
@@ -692,7 +690,6 @@
     return '<svg class="chip-art" viewBox="0 -9 60 18" aria-hidden="true">' + N.hairpin(4, 56, 0, opening) + '</svg>';
   }
 
-  // "cresc." and the like written out in italics, followed by a dashed line.
   function writtenChange(word, x, y, size, end) {
     const textEnd = x + word.length * size * 0.42;
     let dashes = '';
@@ -704,7 +701,6 @@
       chipHtml: '<svg class="chip-art" viewBox="0 -15 76 20" aria-hidden="true">' + writtenChange(word, 1, 0, 13, 74) + '</svg>',
       say: say, detail: detail };
   }
-  // "subito" in italics before a dynamic.
   function subitoItem(id, dyn, say, detail) {
     const body = (x, y, size) => N.text(x, y, 'subito', size * 0.34, { anchor: 'end', weight: 'normal' }) + N.dynamic(dyn, x + size * 0.28, y, size);
     return { id: id, chip: 'subito ' + dyn, group: 'Louder or softer', svg: card(body(66, 72, 80)),

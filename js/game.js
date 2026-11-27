@@ -32,6 +32,7 @@
     intervalStyle: 'melodic',    // 'melodic' | 'harmonic'
     cadenceKeys: ['C:major'],
     chordLabels: 'roman',        // spelling cards and cadence answers: 'roman' | 'function'
+    expressiveSays: 'term',      // expressive markings: 'term' | 'meaning'
     instrument: 'violin',        // 'violin' | 'viola' | 'both' (see Content.INSTRUMENTS)
     clefMode: Content.CLEF_MODES[0],   // for 'both': 'alternate' | 'treble' | 'alto'
     clap: false,                 // clap the rhythm cards during "Say it!"

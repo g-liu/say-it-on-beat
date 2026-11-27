@@ -789,6 +789,34 @@
     TEMPO_CHANGES.map(([id, mark, say, detail]) => ({ id: 'tempo-' + id, chip: mark, group: 'Tempo changes',
       svg: wordCard(mark, true), say: say, detail: detail })));
 
+  const EXPRESSIVE_TIERS = ['Common', 'Uncommon', 'Rare'];
+  const EXPRESSIVE_TERMS = [
+    [['espressivo', 'expressively'], ['cantabile', 'in a singing style'], ['dolce', 'sweetly'], ['legato', 'smoothly connected'],
+      ['rubato', 'with flexible tempo'], ['grazioso', 'gracefully'], ['giocoso', 'playfully, merrily'], ['maestoso', 'majestically'],
+      ['con brio', 'with spirit'], ['con moto', 'with motion'], ['sostenuto', 'sustained'], ['tranquillo', 'calmly'],
+      ['leggiero', 'lightly'], ['marcato', 'marked, each note stressed'], ['animato', 'lively, animated'], ['agitato', 'agitated, restless']],
+    [['stretto', 'pressing forward'], ['morendo', 'dying away'], ['pesante', 'heavily'], ['scherzando', 'jokingly, playfully'],
+      ['appassionato', 'passionately'], ['semplice', 'simply'], ['sotto voce', 'in an undertone, very quietly'], ['risoluto', 'resolutely'],
+      ['affettuoso', 'tenderly, with feeling'], ['con anima', 'with soul'], ['delicato', 'delicately'], ['deciso', 'decisively'],
+      ['energico', 'energetically'], ['brillante', 'brilliantly']],
+    [['lontano', 'as if from far away'], ['a piacere', 'freely, as the player likes'], ['lusingando', 'coaxingly, flatteringly'],
+      ['smorzando', 'fading away'], ['misterioso', 'mysteriously'], ['lacrimoso', 'tearfully'], ['con fuoco', 'with fire'],
+      ['ad libitum', 'freely', 'Latin for “at pleasure”'], ['dolente', 'sorrowfully'], ['mesto', 'sadly'], ['sognando', 'dreamily'],
+      ['feroce', 'fiercely'], ['perdendosi', 'fading away to nothing'], ['calando', 'getting softer and slower']]
+  ];
+  const EXPRESSIVE_SAYS = [['term', 'Italian term'], ['meaning', 'English meaning']];
+  const capFirst = (w) => w[0].toUpperCase() + w.slice(1);
+  const EXPRESSIVE_ITEMS = [].concat.apply([], EXPRESSIVE_TERMS.map((list, tier) => list.map(([term, meaning, note]) => ({
+    id: 'expr-' + term.replace(/ /g, '-'), term: term, meaning: meaning, note: note, group: EXPRESSIVE_TIERS[tier], svg: wordCard(term, true)
+  }))));
+  const DEFAULT_EXPRESSIVE = EXPRESSIVE_ITEMS.filter((e) => e.group === EXPRESSIVE_TIERS[0]).map((e) => e.id);
+  function expressivePool(sel, s) {
+    const meaning = s.expressiveSays === 'meaning';
+    return EXPRESSIVE_ITEMS.filter((e) => sel.indexOf(e.id) >= 0).map((e) => ({
+      id: e.id, svg: e.svg, say: capFirst(meaning ? e.meaning : e.term), detail: (meaning ? e.term : e.meaning) + (e.note ? ' · ' + e.note : '')
+    }));
+  }
+
   const PAUSE_ITEMS = [
     symbolItem('sym-fermata', 'fermataAbove', 'Fermata', 'hold longer than written (also called a pause)'),
     symbolItem('adv-fshort', 'fermataShortAbove', 'Short fermata', 'a brief pause'),
@@ -1646,6 +1674,9 @@
       itemSubcat({ id: 'dynamics', symbols: true, name: 'Dynamics', desc: 'pp to ff, sfz, fp, hairpins' }, DYNAMIC_ITEMS),
       itemSubcat({ id: 'symbols', symbols: true, name: 'Bowing & articulation', desc: 'Bowings, slurs and ties, articulations, pizz. and arco, accidentals' }, SYMBOL_ITEMS),
       itemSubcat({ id: 'tempo', name: 'Tempo', desc: 'Grave to Prestississimo, and tempo changes', defaults: DEFAULT_TEMPOS }, TEMPO_ITEMS),
+      { id: 'expressive', name: 'Expressive markings', desc: 'Words for how to play: dolce, cantabile, maestoso…',
+        chips: EXPRESSIVE_ITEMS.map((e) => ({ id: e.id, label: e.term, group: e.group, cls: 'word-chip' })), defaults: DEFAULT_EXPRESSIVE,
+        pool: (sel, s) => expressivePool(sel, s), options: [{ setting: 'expressiveSays', label: 'Class says', choices: EXPRESSIVE_SAYS }] },
       itemSubcat({ id: 'pauses', symbols: true, name: 'Pauses & fermatas', desc: 'Fermatas, lunga, caesura, breath mark, general pause' }, PAUSE_ITEMS),
       itemSubcat({ id: 'repeats', symbols: true, chipCrop: WIDE_CHIP_CROP, name: 'Repeats', desc: 'Repeat signs, endings, measure repeat, D.C. and D.S., Fine, Coda, Segno' }, REPEAT_ITEMS),
       itemSubcat({ id: 'ornaments', symbols: true, name: 'Ornaments', desc: 'Trills, mordents, turns and other ornaments', defaults: DEFAULT_ORNAMENTS }, ORNAMENT_ITEMS),

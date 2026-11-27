@@ -63,6 +63,22 @@
     stringsDownBow: [0xE610, 1.26], stringsUpBow: [0xE612, 1.048]
   };
 
+  const BBOXES = {
+    fermataAbove: [0, 0, 2.488, 1.472], fermataShortAbove: [0, 0, 2.568, 1.816], fermataLongAbove: [0, 0, 2.492, 1.472],
+    fermataVeryLongAbove: [0, 0, 3.368, 2.196], caesura: [0, 0, 1.52, 1.96], breathMarkComma: [0, 0.001, 0.764, 1.285],
+    repeat1Bar: [0, -1, 1.924, 1], segno: [0, 0, 2.616, 3.476], coda: [0, -0.452, 2.98, 2.94],
+    ornamentTrill: [-0.048, 0, 1.532, 1.532], ornamentMordent: [0, -0.308, 1.892, 1.264], ornamentShortTrill: [0, 0, 1.892, 0.992],
+    ornamentTurn: [0, 0, 1.824, 0.928], ornamentTurnInverted: [0, 0, 1.824, 0.928], ornamentTurnSlash: [0, -0.32, 1.824, 1.252],
+    ornamentTremblement: [0, 0, 2.616, 0.992], ornamentSchleifer: [0, 0, 3.004, 1.892],
+    ornamentPrecompTrillWithMordent: [0, -0.29, 2.612, 1.282], gClef: [0, -2.666, 2.56, 4.449],
+    fClef: [0.001, -2.468, 2.656, 1.004], cClef: [0, -1.92, 2.508, 1.928], articMarcatoAbove: [0.004, 0, 1.184, 1.012],
+    articStaccatissimoWedgeAbove: [-0.001, 0, 0.487, 1.016], articAccentStaccatoAbove: [0, 0, 1.444, 1.376],
+    articTenutoStaccatoAbove: [0, 0, 1.264, 0.748], articTenutoAccentAbove: [0, 0, 1.444, 1.432],
+    pluckedSnapPizzicatoAbove: [0, 0, 1.076, 1.556], pluckedBuzzPizzicato: [0, 0, 1.556, 1.076],
+    stringsHarmonic: [0, 0, 0.724, 0.724], stringsDownBow: [0, 0, 1.26, 1.172], stringsUpBow: [0, 0, 1.048, 1.372],
+    articStaccatoAbove: [0, 0, 0.312, 0.312], articAccentAbove: [0, 0, 1.444, 0.94], articTenutoAbove: [0, 0, 1.264, 0.184]
+  };
+
   // Stem attachment points on the noteheads (staff spaces, y up).
   const STEM_ANCHORS = {
     noteheadBlack: { up: [1.3, 0.16], down: [0, -0.168] },
@@ -93,6 +109,15 @@
     return '<text x="' + r(x) + '" y="' + r(y) + '" font-family="' + FAMILY + '" font-size="' + r(size) + '"' +
       ' font-style="normal" font-weight="normal"' +
       (opts.anchor ? ' text-anchor="' + opts.anchor + '"' : '') + '>' + chars + '</text>';
+  }
+
+  function symbol(name, cx, cy, w, h, maxSize) {
+    const b = BBOXES[name];
+    const bw = (b[2] - b[0]) * SP, bh = (b[3] - b[1]) * SP;
+    const size = Math.min(maxSize || 4 * FONT_SIZE, FONT_SIZE * Math.min(w / bw, h / bh));
+    const k = size / FONT_SIZE;
+    const x = cx - ((b[0] + b[2]) / 2) * SP * k, y = cy + ((b[1] + b[3]) / 2) * SP * k;
+    return { svg: glyph(name, x, y, { size: size }), box: { x: cx - (bw * k) / 2, y: cy - (bh * k) / 2, w: bw * k, h: bh * k } };
   }
 
   /* ---------- pitch helpers ---------- */
@@ -335,7 +360,7 @@
   }
 
   global.Notation = {
-    SP: SP, HALF: HALF, svg: svg, g: g, rect: rect, line: line, circle: circle, text: text, glyph: glyph, width: width,
+    SP: SP, HALF: HALF, svg: svg, g: g, rect: rect, line: line, circle: circle, text: text, glyph: glyph, width: width, symbol: symbol,
     staff: staff, singleLine: singleLine, barline: barline, ledgers: ledgers,
     clef: clef, clefWidth: clefWidth, accidental: accidental, accidentalWidth: accidentalWidth,
     note: note, notehead: notehead, beam: beam, rest: rest,

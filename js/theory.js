@@ -304,7 +304,8 @@
 
   /*
    * Each cadence is two chords in a key: [kind, chord index, bass member, top member] where members
-   * are 0 root, 1 third, 2 fifth, 3 seventh. `modes` limits it to major or minor keys.
+   * are 0 root, 1 third, 2 fifth, 3 seventh; a null top member lets the voicing pick the smoothest.
+   * `modes` limits it to major or minor keys.
    */
   const CADENCES = {
     pac: { name: 'Perfect authentic cadence', short: 'PAC', variants: [
@@ -315,26 +316,197 @@
       { a: ['V', 0, 0, 0], b: ['I', 0, 0, 2], note: 'the 5th of the tonic chord is on top' },
       { a: ['V7', 0, 0, 2], b: ['I', 0, 0, 1], note: 'the 3rd of the tonic chord is on top' }] },
     half: { name: 'Half cadence', short: 'HC', variants: [
-      { a: ['I', 0, 0, 0], b: ['V', 0, 0, 1], note: 'ends on V' },
-      { a: ['IV', 0, 0, 0], b: ['V', 0, 0, 2], note: 'ends on V' }] },
+      { a: ['I', 0, 0, null], b: ['V', 0, 0, null], note: 'ends on V' },
+      { a: ['IV', 0, 0, null], b: ['V', 0, 0, null], note: 'ends on V' }] },
     plagal: { name: 'Plagal cadence', short: 'PC', variants: [
-      { a: ['IV', 0, 0, 2], b: ['I', 0, 0, 0], note: 'the “Amen” cadence' }] },
+      { a: ['IV', 0, 0, null], b: ['I', 0, 0, null], note: 'the “Amen” cadence' }] },
     deceptive: { name: 'Deceptive cadence', short: 'DC', variants: [
       { a: ['V', 0, 0, 1], b: ['vi', 0, 0, 1], note: 'V goes to the submediant instead of the tonic' },
       { a: ['V7', 0, 0, 1], b: ['vi', 0, 0, 1], note: 'V7 goes to the submediant instead of the tonic' }] },
     halfii: { name: 'Half cadence', short: 'HC', variants: [
-      { a: ['ii', 0, 1, 0], b: ['V', 0, 0, 2], note: 'the supertonic in 1st inversion, to V' }] },
+      { a: ['ii', 0, 1, null], b: ['V', 0, 0, null], note: 'the supertonic in 1st inversion, to V' }] },
     half64: { name: 'Half cadence', short: 'HC', variants: [
-      { a: ['cad64', 0, 2, 0], b: ['V', 0, 0, 1], note: 'cadential 6-4 to V' }] },
+      { a: ['cad64', 0, 2, null], b: ['V', 0, 0, null], note: 'cadential 6-4 to V' }] },
     phrygian: { name: 'Phrygian half cadence', short: 'PHC', modes: [MIN], variants: [
-      { a: ['IV', 0, 1, 0], b: ['V', 0, 0, 2], note: 'iv in 1st inversion to V: the bass steps down a half step' }] },
+      { a: ['IV', 0, 1, null], b: ['V', 0, 0, null], note: 'iv in 1st inversion to V: the bass steps down a half step' }] },
     picardy: { name: 'Picardy third', short: 'PAC with a Picardy third', modes: [MIN], variants: [
       { a: ['V', 0, 0, 1], b: ['borrowed', 0, 0, 0], note: 'a minor-key piece ends on a major tonic chord' }] },
     minplagal: { name: 'Minor plagal cadence', short: 'PC', modes: [MAJ], variants: [
-      { a: ['borrowed', 0, 0, 2], b: ['I', 0, 0, 0], note: 'minor iv to I, borrowed from the minor key' }] },
+      { a: ['borrowed', 0, 0, null], b: ['I', 0, 0, null], note: 'minor iv to I, borrowed from the minor key' }] },
     deceptiveb6: { name: 'Deceptive cadence', short: 'DC', modes: [MAJ], variants: [
       { a: ['V', 0, 0, 1], b: ['borrowed', 1, 0, 1], note: 'V to ♭VI, borrowed from the minor key' }] }
   };
+
+  /* ---------------- four-part voicing for cadences ---------------- */
+
+  /*
+   * Cadences are written in four parts (bass and three upper voices) on one treble staff, then moved
+   * by octaves for alto clef. Staff positions count diatonic steps from the bottom line (E4 in treble,
+   * F3 in alto); at most two ledger lines means positions -5 to 13.
+   */
+  const STAFF_BOTTOM = { treble: 4 * 7 + 2, alto: 3 * 7 + 3 };
+  const LOWEST_POS = -5, HIGHEST_POS = 13;
+  const diatonicOf = (v) => v.octave * 7 + LETTERS.indexOf(v.name[0]);
+  const staffPosOf = (v, clef) => diatonicOf(v) - STAFF_BOTTOM[clef || 'treble'];
+  const ledgerLines = (pos) => (pos < -1 ? Math.floor(-pos / 2) : pos > 9 ? Math.floor((pos - 8) / 2) : 0);
+
+  // What each voicing rule costs; Infinity forbids it.
+  const VOICING_COST = {
+    parallel: Infinity, contrary58: 25, hidden58: 6, overlap: 15, upperLeapOverOctave: Infinity, leap: 2,
+    augSecond: 30, unresolvedLeadingTone: Infinity, unresolvedSeventh: Infinity, outsideStaff: 1.5, offCenter: 0.3,
+    doubledLeadingTone: Infinity, doubledSeventh: Infinity, doubledRoot: 0, doubledBass: 1, doubledFifth: 4, doubledThird: 8,
+    noFifth: 5, sopranoMotion: 1.2, innerMotion: 1, bassLeapOverFifth: 0.5
+  };
+
+  // Every four-part voicing of a chord with the given bass and soprano members: [{ name, octave, midi, member }] low to high.
+  function chordVoicings(ch, bassM, topM, avoid, clef) {
+    const m = ch.notes.length;
+    const octavesOf = (member) => {
+      const name = ch.notes[member];
+      const out = [];
+      for (let o = 2; o <= 6; o++) {
+        const v = { name: name, octave: o, member: member, midi: toMidi(name, o) };
+        const p = staffPosOf(v, clef);
+        if (p >= LOWEST_POS && p <= HIGHEST_POS) out.push(v);
+      }
+      return out;
+    };
+    const result = [];
+    const seen = new Set();
+    const tops = topM == null ? ch.notes.map((n, k) => k) : [topM];
+    for (let i = 0; i < m; i++) for (let j = 0; j < m; j++) tops.forEach((top) => {
+        const members = [bassM, i, j, top];
+        const count = (k) => members.filter((x) => x === k).length;
+        if (count(0) < 1 || count(1) < 1 || (m === 4 && count(3) !== 1)) return;
+        if (avoid.some((k) => count(k) > 1)) return;
+        octavesOf(bassM).forEach((b) => octavesOf(i).forEach((t) => octavesOf(j).forEach((a) => octavesOf(top).forEach((s) => {
+          const v = [b, t, a, s];
+          for (let k = 1; k < 4; k++) if (v[k].midi <= v[k - 1].midi || diatonicOf(v[k]) <= diatonicOf(v[k - 1])) return;
+          if (s.midi - a.midi > 12 || a.midi - t.midi > 12 || t.midi - b.midi > 19) return;
+          const key = v.map((x) => x.midi).join(',');
+          if (seen.has(key)) return;
+          seen.add(key);
+          result.push(v);
+        }))));
+      });
+    return result;
+  }
+
+  // How good one chord's doubling and register are (lower is better).
+  function chordCost(v, ch, bassM, prefer, clef) {
+    const C = VOICING_COST;
+    const counts = [0, 0, 0, 0];
+    v.forEach((x) => { counts[x.member]++; });
+    let cost = 0;
+    if (ch.notes.length === 3) {
+      const dup = counts.findIndex((c) => c >= 2);
+      if (counts[2] === 0) cost += C.noFifth;
+      else if (dup === prefer) cost += 0;
+      else if (dup === 0) cost += C.doubledRoot;
+      else if (dup === bassM) cost += C.doubledBass;
+      else if (dup === 2) cost += C.doubledFifth;
+      else if (dup === 1) cost += C.doubledThird;
+    } else if (counts[2] === 0) cost += C.noFifth;
+    let sum = 0;
+    v.forEach((x) => {
+      const p = staffPosOf(x, clef);
+      cost += C.outsideStaff * (p < 0 ? -p : p > 8 ? p - 8 : 0);
+      sum += p;
+    });
+    return cost + C.offCenter * Math.abs(sum / 4 - 4);
+  }
+
+  // The cost of moving from voicing A to voicing B. lt / seventh: A's members that must resolve (or null).
+  function motionCost(A, B, lt, seventh) {
+    const C = VOICING_COST;
+    let cost = 0;
+    for (let k = 0; k < 4; k++) {
+      const d = B[k].midi - A[k].midi;
+      const steps = diatonicOf(B[k]) - diatonicOf(A[k]);
+      if (k > 0 && Math.abs(d) > 12) return Infinity;
+      if (k === 0) cost += C.bassLeapOverFifth * Math.max(0, Math.abs(d) - 7);
+      else {
+        cost += (k === 3 ? C.sopranoMotion : C.innerMotion) * Math.abs(d);
+        if (Math.abs(steps) >= 2 && Math.abs(d) > 2) cost += C.leap;
+      }
+      if (Math.abs(steps) === 1 && Math.abs(d) === 3) cost += C.augSecond;
+      if (lt != null && A[k].member === lt && d !== 1) cost += C.unresolvedLeadingTone;
+      if (seventh != null && A[k].member === seventh && !(d === -1 || d === -2)) cost += C.unresolvedSeventh;
+      if (k < 3 && (B[k].midi > A[k + 1].midi || B[k + 1].midi < A[k].midi)) cost += C.overlap;
+    }
+    for (let x = 0; x < 4; x++) {
+      for (let y = x + 1; y < 4; y++) {
+        const ia = (A[y].midi - A[x].midi) % 12, ib = (B[y].midi - B[x].midi) % 12;
+        const dx = B[x].midi - A[x].midi, dy = B[y].midi - A[y].midi;
+        if (ia !== ib || (ia !== 0 && ia !== 7) || !dx || !dy) continue;
+        cost += Math.sign(dx) === Math.sign(dy) ? C.parallel : C.contrary58;
+      }
+    }
+    const db = B[0].midi - A[0].midi, ds = B[3].midi - A[3].midi;
+    const outer = (B[3].midi - B[0].midi) % 12;
+    if (db && ds && Math.sign(db) === Math.sign(ds) && (outer === 0 || outer === 7) && Math.abs(ds) > 2) cost += C.hidden58;
+    return cost;
+  }
+
+  const isDominant = (spec) => spec[0] === 'V' || spec[0] === 'V7';
+  const voicingCache = {};
+
+  function searchCadence(key, variant, clef) {
+    const chA = kindChords(variant.a[0], key)[variant.a[1]];
+    const chB = kindChords(variant.b[0], key)[variant.b[1]];
+    const dom = isDominant(variant.a);
+    const lt = dom ? 1 : null;
+    const seventh = dom && chA.notes.length === 4 ? 3 : null;
+    const ltOfB = isDominant(variant.b) ? [1] : [];
+    // A deceptive cadence (V to vi or ♭VI) doubles the 3rd of the second chord, the tonic.
+    const preferB = dom && pc(chB.root) !== pc(key.tonic) ? 1 : null;
+    const As = chordVoicings(chA, variant.a[2], variant.a[3], dom ? [1, 3] : [3], clef);
+    const Bs = chordVoicings(chB, variant.b[2], variant.b[3], ltOfB.concat([3]), clef);
+    const costB = Bs.map((v) => chordCost(v, chB, variant.b[2], preferB, clef));
+    let best = null, bestCost = Infinity;
+    As.forEach((A) => {
+      const ca = chordCost(A, chA, variant.a[2], null, clef);
+      if (ca >= bestCost) return;
+      Bs.forEach((B, i) => {
+        const c = ca + costB[i];
+        if (c >= bestCost) return;
+        const total = c + motionCost(A, B, lt, seventh);
+        if (total < bestCost) { bestCost = total; best = { a: A, b: B, cost: total }; }
+      });
+    });
+    return best;
+  }
+
+  // A voicing moved by whole octaves to sit best on a clef's staff, or null if no octave fits.
+  function registerFor(voiced, clef) {
+    let best = null, bestCost = Infinity;
+    [0, -1, 1, -2].forEach((k) => {
+      const move = (ch) => ch.map((v) => Object.assign({}, v, { octave: v.octave + k, midi: v.midi + 12 * k }));
+      const moved = { a: move(voiced.a), b: move(voiced.b), cost: voiced.cost, shift: k };
+      let cost = 0;
+      moved.a.concat(moved.b).forEach((v) => {
+        const p = staffPosOf(v, clef);
+        cost += p < LOWEST_POS || p > HIGHEST_POS ? Infinity : (p < 0 ? -p : p > 8 ? p - 8 : 0);
+      });
+      if (cost < bestCost) { bestCost = cost; best = moved; }
+    });
+    return best;
+  }
+
+  /*
+   * The best four-part voicing of a cadence variant ({ a, b } chord specs, see CADENCES) in a key, on a
+   * clef's staff: { a: [...], b: [...], cost, shift }, each chord four { name, octave, midi, member } from
+   * the bass up. Alto clef uses the treble voicing moved by octaves (shift), or its own if that doesn't fit.
+   */
+  function voiceCadence(key, variant, clef) {
+    clef = clef || 'treble';
+    const id = clef + '|' + key.id + '|' + variant.a.join() + '|' + variant.b.join();
+    if (!(id in voicingCache)) {
+      const treble = clef === 'treble' ? null : voiceCadence(key, variant, 'treble');
+      voicingCache[id] = (treble && registerFor(treble, clef)) || searchCadence(key, variant, clef);
+    }
+    return voicingCache[id];
+  }
 
   global.Theory = {
     LETTERS: LETTERS, LETTER_PC: LETTER_PC, accOf: accOf, accValue: accValue, pc: pc, pretty: pretty, prettyList: prettyList,
@@ -342,6 +514,8 @@
     KEY_PAIRS: KEY_PAIRS, KEYS: KEYS, keyById: keyById, keyName: keyName, sigAcc: sigAcc, shownAcc: shownAcc, scaleOf: scaleOf,
     INTERVALS: INTERVALS, intervalById: intervalById, intervalsInKey: intervalsInKey,
     QUALITIES: QUALITIES, chordNotes: chordNotes, chordSteps: chordSteps, chordName: chordName,
-    kindChords: kindChords, bassUp: bassUp, rnText: rnText, DEGREE_FN: DEGREE_FN, CADENCES: CADENCES
+    kindChords: kindChords, bassUp: bassUp, rnText: rnText, DEGREE_FN: DEGREE_FN, CADENCES: CADENCES,
+    voiceCadence: voiceCadence, staffPosOf: staffPosOf, ledgerLines: ledgerLines, diatonicOf: diatonicOf,
+    VOICING_COST: VOICING_COST
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1511,22 +1511,6 @@
     return out;
   }
 
-  // One chord voiced for a cadence: [kind, chord index, bass member, top member]; members are
-  // 0 root, 1 3rd, 2 5th, 3 7th. The upper three voices are in close position with the top member
-  // highest: triads double one note, 7th chords use the other three notes.
-  function voiceChord(key, spec) {
-    const ch = T.kindChords(spec[0], key)[spec[1]];
-    const m = ch.notes.length, bass = spec[2], topM = spec[3];
-    let order = [];
-    for (let i = 1; i <= m; i++) order.push((topM + i) % m);   // ends with the top member
-    if (m > 3) {
-      const at = order.indexOf(bass);
-      if (at >= 0 && at < order.length - 1) order.splice(at, 1);
-    }
-    order = order.slice(-3);
-    return { chord: ch, names: [ch.notes[bass]].concat(order.map((i) => ch.notes[i])) };
-  }
-
   function cadencePool(sel, s) {
     const labels = s.chordLabels === 'function' ? 'function' : 'roman';
     const out = [];
@@ -1535,16 +1519,14 @@
         const cad = T.CADENCES[id];
         if (!cad || (cad.modes && cad.modes.indexOf(key.mode) < 0)) return;
         cad.variants.forEach((v, vi) => {
-          const a = voiceChord(key, v.a), b = voiceChord(key, v.b);
-          const name = (c) => (labels === 'function' ? c.chord.fn : T.rnText(c.chord.rn));
+          const a = T.kindChords(v.a[0], key)[v.a[1]], b = T.kindChords(v.b[0], key)[v.b[1]];
+          const name = (c) => (labels === 'function' ? c.fn : T.rnText(c.rn));
           out.push({
             id: 'cadence-' + key.id + id + vi,
             draw: (clef) => {
-              const first = placeChord(a.names, clef, 10);
-              // The second chord's bass goes as close as it can to the first one's.
-              const target = N.staffPos(first[0].name[0], first[0].octave, clef);
-              const second = stackUp(b.names, bassOctaveFor(b.names[0], clef, target));
-              return chordsSvg([first, second], { clef: clef, sig: key.sig, bar: true });
+              const voiced = T.voiceCadence(key, v, clef === 'alto' ? 'alto' : 'treble');
+              const notes = (ch) => ch.map((n) => ({ name: n.name, octave: n.octave }));
+              return chordsSvg([notes(voiced.a), notes(voiced.b)], { clef: clef, sig: key.sig, bar: true });
             },
             say: cad.name,
             detail: name(a) + ' → ' + name(b) + ' in ' + keyText(key) + ' · ' + v.note

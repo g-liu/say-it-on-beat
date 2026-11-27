@@ -78,6 +78,13 @@
     { n: 5, type: 'b', major: 'Db', minor: 'Bb' },
     { n: 6, type: 'b', major: 'Gb', minor: 'Eb' }
   ];
+  const KEY_PICKER_ORDER = {
+    major: ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F'],
+    minor: ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'Eb', 'Bb', 'F', 'C', 'G', 'D']
+  };
+  const KEY_PAIRS_IN_ORDER = KEY_PICKER_ORDER.major.map((t) => KEY_PAIRS.find((k) => k.major === t));
+  const PICKER_KEYS = ['major', 'minor'].reduce((out, mode) =>
+    out.concat(KEY_PICKER_ORDER[mode].map((t) => T.keyById(t + ':' + mode))), []);
   const keyChipLabel = (k) => pretty(k.major) + (k.n ? ' · ' + k.n + (k.type === '#' ? SHARP : FLAT) : '');
 
   const SHARP_POS = [8, 5, 9, 6, 3, 7, 4];   // F C G D A E B (treble staff positions)
@@ -301,7 +308,7 @@
   };
   const MINOR_TYPES = ['natural', 'harmonic', 'melodic'];
   // One list for the scale menu: each major key followed by its relative minors.
-  const SCALE_CHOICES = KEY_PAIRS.map((k) => ({
+  const SCALE_CHOICES = KEY_PAIRS_IN_ORDER.map((k) => ({
     label: k.n === 0 ? 'No sharps or flats' : k.n + (k.type === '#' ? ' sharp' : ' flat') + (k.n > 1 ? 's' : ''),
     options: [{ key: k.major, type: 'major' }].concat(MINOR_TYPES.map((t) => ({ key: k.minor, type: t })))
       .map((o) => ({ value: o.key + ':' + o.type, key: o.key, type: o.type,
@@ -561,7 +568,7 @@
    * Key signatures and scale degrees
    * ========================================================= */
 
-  const KEY_ITEMS = KEY_PAIRS.map((k) => {
+  const KEY_ITEMS = KEY_PAIRS_IN_ORDER.map((k) => {
     const accs = k.n === 0 ? 'no sharps or flats'
       : k.n + ' ' + (k.type === '#' ? 'sharp' : 'flat') + (k.n > 1 ? 's' : '');
     return {
@@ -1748,7 +1755,7 @@
 
   global.Content = {
     INSTRUMENTS: INSTRUMENTS, INSTRUMENT_IDS: INSTRUMENT_IDS, CLEF_MODES: CLEF_MODES, clefFor: clefFor, resolve: resolve,
-    KEYS: T.KEYS, DEGREE_IDS: DEGREE_IDS, CHORD_LABELS: CHORD_LABELS,
+    KEYS: PICKER_KEYS, DEGREE_IDS: DEGREE_IDS, CHORD_LABELS: CHORD_LABELS,
     TABS: TABS, CATEGORIES: CATEGORIES, SUBCATS: SUBCATS, subById: subById, STRINGS: STRINGS, RELOCATED_CHIPS: RELOCATED_CHIPS,
     METERS: METERS, METER_IDS: METER_IDS, meterName: meterName, rhythmItem: rhythmItem, DEFAULT_RHYTHM_VALUES: DEFAULT_RHYTHM_VALUES,
     SCALE_CHOICES: SCALE_CHOICES, RANGE_NOTES: RANGE_NOTES, PICK_ROWS: PICK_ROWS,

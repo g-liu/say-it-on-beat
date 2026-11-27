@@ -26,7 +26,7 @@ Only the open tab is played. Each tab has categories split into subcategories. N
 - **Note names**
   - **Home position**: G A B C, D E F♯ G, A B C♯ D, E F♯ G♯ A B, on the strings you pick
   - **Diatonic note names**, chosen one of three ways:
-    - **Scale**: one menu that goes around the circle of fifths: C major and A natural, harmonic and melodic minor, then 1 sharp through 6 sharps, then 1 flat through 6 flats. Each major key is followed by its relative minors. Melodic minor includes both the raised (going up) and natural (coming down) 6th and 7th. G♯ and D♯ minor use double sharps.
+    - **Scale**: one menu that goes around the circle of fifths: C major and A natural, harmonic and melodic minor, then 1 sharp through 6 sharps, then 6 flats back down to 1 flat (the same order as every key picker: C G D A E B F♯ G♭ D♭ A♭ E♭ B♭ F, and Am Em Bm F♯m C♯m G♯m D♯m E♭m B♭m Fm Cm Gm Dm). Each major key is followed by its relative minors. Melodic minor includes both the raised (going up) and natural (coming down) 6th and 7th. G♯ and D♯ minor use double sharps.
     - **Chromatic**: every natural, sharp and flat in the range. C♯ and D♭ are separate cards.
     - **Pick notes**: choose exact spellings (C♯ is not the same card as D♭; E♯, B♯, C♭ and F♭ are available too), in the range.
     - **Range**: 1, 2 or 3 octaves (from the lowest tonic at or above the lowest open string for a scale, from the lowest open string otherwise), or **Custom**: drag the two ends of the slider anywhere from the instrument's lowest note to B7.
